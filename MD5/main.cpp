@@ -2,14 +2,15 @@
 
 #include "MD5.hpp"
 
-using namespace std;
+using std::cout;
+using std::endl;
 
 int main()
 {
 	string str;
     str = "nothing";
 
-	MD5 md5;
-    md5.encode(str);
-    md5.showResult();
+	MD5 md5(str);
+    
+    cout << md5.toStr() << endl;
 }

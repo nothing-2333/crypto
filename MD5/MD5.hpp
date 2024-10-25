@@ -1,328 +1,319 @@
 #pragma once
 
 #include <string>
-#include <iostream>
 #include <cstring>
+
+using std::string;
+
+typedef unsigned char u8;
+typedef unsigned int u32;
 
 class MD5
 {
 public:
-    MD5(std::string& str);
-    MD5() {};
-    ~MD5() {};
+    MD5(const string& message);
 
-    // 更新函数
-    void update(const unsigned char* inputStr, int strLength);
-    // 展示结果
-    void showResult();
-    // 加密
-    void encode(std::string& str);
+    // md5 digest
+    const u8* getDigest();
+
+    // 将 md5 digest 转化为字符串
+    string toStr();
 
 private:
-    // 四个寄存器，MD缓冲区，共128位
-    unsigned int state[4];
-    // 统计长度，仅保留前64位
-    unsigned int count[2];
-    // 输入
-    unsigned char buffer[512];
-    // 输出
-    unsigned char digest[128];
-    // 填充标记
-    bool isPadding;
-    // 输出32位结果
-    char result[33];
+    void init(const u8* input, size_t length);
 
-    // 初始化
-    void initialize(std::string& str);
-    // 对一个区做变换
-    void transform(unsigned char block[64]);
-    // 填充函数，增加长度
-    void padding();
-    // unsigned char 与 unsigned int 相互转换
-    void int2char(unsigned char* output, const unsigned int* input, int length);
-    void char2int(unsigned int* output, const unsigned char* input, int length);
+    void transform(const u8 block[64]);
+
+    // 转换数据存储格式
+    // usigned int to usigned char
+    void encode(const u32* input, u8* output, size_t length);
+    // usigned char to usigned int
+    void decode(const u8* input, u32* output, size_t length);
+
+    u32 F(u32 b, u32 c, u32 d);
+    u32 G(u32 b, u32 c, u32 d);
+    u32 H(u32 b, u32 c, u32 d);
+    u32 I(u32 b, u32 c, u32 d);
+
+    void FF(u32& a, u32 b, u32 c, u32 d, u32 x, u32 s, u32 Ti);
+    void GG(u32& a, u32 b, u32 c, u32 d, u32 x, u32 s, u32 Ti);
+    void HH(u32& a, u32 b, u32 c, u32 d, u32 x, u32 s, u32 Ti);
+    void II(u32& a, u32 b, u32 c, u32 d, u32 x, u32 s, u32 Ti);
+
     // 循环左移
-    unsigned int shiftLeft(unsigned int num, int pos);
-    // 轮函数
-    unsigned int F(unsigned int b, unsigned int c, unsigned int d);
-    unsigned int G(unsigned int b, unsigned int c, unsigned int d);
-    unsigned int H(unsigned int b, unsigned int c, unsigned int d);
-    unsigned int I(unsigned int b, unsigned int c, unsigned int d);
-    // 压缩函数
-	void HF(unsigned int &a, unsigned int b, unsigned int c, unsigned int d, unsigned int x, unsigned int s, unsigned int Ti);
-    void HG(unsigned int &a, unsigned int b, unsigned int c, unsigned int d, unsigned int x, unsigned int s, unsigned int Ti);
-    void HH(unsigned int &a, unsigned int b, unsigned int c, unsigned int d, unsigned int x, unsigned int s, unsigned int Ti);
-    void HI(unsigned int &a, unsigned int b, unsigned int c, unsigned int d, unsigned int x, unsigned int s, unsigned int Ti);
+    u32 shift_left(u32 num, int pos);
+
+private:
+    bool finished;
+
+    u32 state[4];
+
+    u32 count[2];
+
+    u8 buffer[64];
+
+    u8 digest[16];
+
+    static const u8 padding[64];
+
+    static const char hexNumbers[16];
 };
 
-void MD5::initialize(std::string& str)
+const u8 MD5::padding[64] = { 0x80 };
+const char MD5::hexNumbers[16] = {
+  '0', '1', '2', '3',
+  '4', '5', '6', '7',
+  '8', '9', 'a', 'b',
+  'c', 'd', 'e', 'f'
+};
+
+MD5::MD5(const string& message)
 {
-    // 初始化 IV
+    finished = false;
+
+    count[0] = count[1] = 0;
     state[0] = 0x67452301;
     state[1] = 0xefcdab89;
     state[2] = 0x98badcfe;
     state[3] = 0x10325476;
 
-    isPadding = false;
-    memset(count, 0, sizeof(count));
-    memset(digest, 0, sizeof(digest));
-
-    update((unsigned char*)(str.c_str()), str.size());
-    padding();
-
-    // 将 4 个 state 结果连接起来放在 digest 中
-    int2char(digest, state, 16);
+    init((const u8*)message.c_str(), message.size());
 }
 
-MD5::MD5(std::string& str)
+// md5 digest
+const u8* MD5::getDigest()
 {
-    initialize(str);
-}
-
-void MD5::encode(std::string& str)
-{
-    // 每次执行前都要初始化一遍
-    initialize(str);
-}
-
-void MD5::update(const unsigned char* inputStr, int strLength)
-{   
-    int index = (count[0] >> 3) & 0x3f;
-
-    // 使用 count 时，将 2 个 32 位转换成 64bit 处理
-    count[0] += strLength << 3;
-    if (count[0] << (strLength << 3)) count[1]++;
-
-    // 需要补齐的长度
-    int paddingLength = 64 - index;
-
-    if (strLength >= paddingLength)
+    if (!finished)
     {
-        // 将数据放入 buffer 中进行处理
-        memcpy(buffer + index, inputStr, paddingLength);
+        finished = true;
+
+        u8 bits[8];
+        u32 oldState[4];
+        u32 oldCount[2];
+        u32 index, paddingLength;
+
+        memcpy(oldState, state, 16);
+        memcpy(oldCount, count, 8);
+
+        encode(count, bits, 8);
+        index = (u32)((count[0] >> 3) & 0x3f);
+        paddingLength = (index < 56) ? (56 - index) : (120 - index);
+        init(padding, paddingLength);
+
+        init(bits, 8);
+
+        encode(state, digest, 16);
+
+        memcpy(state, oldState, 16);
+        memcpy(count, oldCount, 8);
+    }
+    return digest;
+}
+
+// 将 md5 digest 转化为字符串
+string MD5::toStr()
+{
+    const u8* digest_ = getDigest();
+    string str;
+    str.reserve(16 << 1);
+    for (size_t i = 0; i < 16; ++i)
+    {
+        int t = digest_[i];
+        int a = t / 16;
+        int b = t % 16;
+        str.append(1, hexNumbers[a]);
+        str.append(1, hexNumbers[b]);
+    }
+    return str;
+}
+
+void MD5::init(const u8* input, size_t length)
+{
+    u32 i ,index, partLength;
+
+    finished = false;
+
+    index = (u32)((count[0] >> 3) & 0x3f);
+
+    count[0] += ((u32)length << 3);
+    if (count[0] < ((u32)length << 3)) count[1]++;
+    count[1] += ((u32)length >> 29);
+
+    partLength = 64 - index;
+
+    if (length >= partLength)
+    {
+        memcpy(&buffer[index], input, partLength);
         transform(buffer);
 
-        // 分组处理
-        for (int i = paddingLength; 64 + i < strLength; i += 64)
+        for (i = partLength; i + 63 < length; i += 64)
         {
-            transform((unsigned char*)inputStr + i);
+            transform(&input[i]);
         }
         index = 0;
     }
+    else i = 0;
 
-    memcpy(buffer + index, inputStr, strLength);
+    memcpy(&buffer[index], &input[i], length - i);
 }
 
-void MD5::padding()
+void MD5::transform(const u8 block[64])
 {
-    unsigned char padding[64] = 
-    {
-        0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-		0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    };
+    u32 a = state[0], b = state[1], c = state[2], d = state[3];
+    u32 x[16];
 
-    if (!isPadding)
-    {
-        unsigned char bits[8];
+    decode(block, x, 64);
 
-        // 将 count 转化为 64bit
-        int2char(bits, count, 8);
+    u32 s11 =  7;
+    u32 s12 =  12;
+    u32 s13 =  17;
+    u32 s14 =  22;
+    u32 s21 =  5;
+    u32 s22 =  9;
+    u32 s23 =  14;
+    u32 s24 =  20;
+    u32 s31 =  4;
+    u32 s32 =  11;
+    u32 s33 =  16;
+    u32 s34 =  23;
+    u32 s41 =  6;
+    u32 s42 =  10;
+    u32 s43 =  15;
+    u32 s44 =  21;
+    /* Round 1 */
+    FF (a, b, c, d, x[ 0], s11, 0xd76aa478);
+    FF (d, a, b, c, x[ 1], s12, 0xe8c7b756);
+    FF (c, d, a, b, x[ 2], s13, 0x242070db);
+    FF (b, c, d, a, x[ 3], s14, 0xc1bdceee);
+    FF (a, b, c, d, x[ 4], s11, 0xf57c0faf);
+    FF (d, a, b, c, x[ 5], s12, 0x4787c62a);
+    FF (c, d, a, b, x[ 6], s13, 0xa8304613);
+    FF (b, c, d, a, x[ 7], s14, 0xfd469501);
+    FF (a, b, c, d, x[ 8], s11, 0x698098d8);
+    FF (d, a, b, c, x[ 9], s12, 0x8b44f7af);
+    FF (c, d, a, b, x[10], s13, 0xffff5bb1);
+    FF (b, c, d, a, x[11], s14, 0x895cd7be);
+    FF (a, b, c, d, x[12], s11, 0x6b901122);
+    FF (d, a, b, c, x[13], s12, 0xfd987193);
+    FF (c, d, a, b, x[14], s13, 0xa679438e);
+    FF (b, c, d, a, x[15], s14, 0x49b40821);
 
-        int index = (count[0] >> 3) & 0x3f;
+    /* Round 2 */
+    GG (a, b, c, d, x[ 1], s21, 0xf61e2562);
+    GG (d, a, b, c, x[ 6], s22, 0xc040b340);
+    GG (c, d, a, b, x[11], s23, 0x265e5a51);
+    GG (b, c, d, a, x[ 0], s24, 0xe9b6c7aa);
+    GG (a, b, c, d, x[ 5], s21, 0xd62f105d);
+    GG (d, a, b, c, x[10], s22,  0x2441453);
+    GG (c, d, a, b, x[15], s23, 0xd8a1e681);
+    GG (b, c, d, a, x[ 4], s24, 0xe7d3fbc8);
+    GG (a, b, c, d, x[ 9], s21, 0x21e1cde6);
+    GG (d, a, b, c, x[14], s22, 0xc33707d6);
+    GG (c, d, a, b, x[ 3], s23, 0xf4d50d87);
+    GG (b, c, d, a, x[ 8], s24, 0x455a14ed);
+    GG (a, b, c, d, x[13], s21, 0xa9e3e905);
+    GG (d, a, b, c, x[ 2], s22, 0xfcefa3f8);
+    GG (c, d, a, b, x[ 7], s23, 0x676f02d9);
+    GG (b, c, d, a, x[12], s24, 0x8d2a4c8a);
 
-        // 预留 8 位给 length
-        int paddingLength = index < (64 - 8) ? (64 - 8 - index) : (2 * 64 - 8 - index);
+    /* Round 3 */
+    HH (a, b, c, d, x[ 5], s31, 0xfffa3942);
+    HH (d, a, b, c, x[ 8], s32, 0x8771f681);
+    HH (c, d, a, b, x[11], s33, 0x6d9d6122);
+    HH (b, c, d, a, x[14], s34, 0xfde5380c);
+    HH (a, b, c, d, x[ 1], s31, 0xa4beea44);
+    HH (d, a, b, c, x[ 4], s32, 0x4bdecfa9);
+    HH (c, d, a, b, x[ 7], s33, 0xf6bb4b60);
+    HH (b, c, d, a, x[10], s34, 0xbebfbc70);
+    HH (a, b, c, d, x[13], s31, 0x289b7ec6);
+    HH (d, a, b, c, x[ 0], s32, 0xeaa127fa);
+    HH (c, d, a, b, x[ 3], s33, 0xd4ef3085);
+    HH (b, c, d, a, x[ 6], s34,  0x4881d05);
+    HH (a, b, c, d, x[ 9], s31, 0xd9d4d039);
+    HH (d, a, b, c, x[12], s32, 0xe6db99e5);
+    HH (c, d, a, b, x[15], s33, 0x1fa27cf8);
+    HH (b, c, d, a, x[ 2], s34, 0xc4ac5665);
 
-        // 填补 padding 数组，长度为 paddingLength 
-        update(padding, paddingLength);
+    /* Round 4 */
+    II (a, b, c, d, x[ 0], s41, 0xf4292244);
+    II (d, a, b, c, x[ 7], s42, 0x432aff97);
+    II (c, d, a, b, x[14], s43, 0xab9423a7);
+    II (b, c, d, a, x[ 5], s44, 0xfc93a039);
+    II (a, b, c, d, x[12], s41, 0x655b59c3);
+    II (d, a, b, c, x[ 3], s42, 0x8f0ccc92);
+    II (c, d, a, b, x[10], s43, 0xffeff47d);
+    II (b, c, d, a, x[ 1], s44, 0x85845dd1);
+    II (a, b, c, d, x[ 8], s41, 0x6fa87e4f);
+    II (d, a, b, c, x[15], s42, 0xfe2ce6e0);
+    II (c, d, a, b, x[ 6], s43, 0xa3014314);
+    II (b, c, d, a, x[13], s44, 0x4e0811a1);
+    II (a, b, c, d, x[ 4], s41, 0xf7537e82);
+    II (d, a, b, c, x[11], s42, 0xbd3af235);
+    II (c, d, a, b, x[ 2], s43, 0x2ad7d2bb);
+    II (b, c, d, a, x[ 9], s44, 0xeb86d391);
 
-        // 对长度 8 位做出处理
-        update(padding, 8);
-
-        isPadding = true;
-    }
-
-    std::cout << "MD5 加密完成，以下是四个 state 信息" << std::endl; 
-    for (int i = 0; i < 4; ++i)
-    {
-        std::cout << state[i] << std::endl;
-    }
+    state[0] += a;
+    state[1] += b;
+    state[2] += c;
+    state[3] += d;
 }
 
-void MD5::showResult()
+// usigned int to usigned char
+void MD5::encode(const u32* input, u8* output, size_t length)
 {
-    // 转化为 16 进制
-    result[32] = 0;
-    for (int i = 0; i < 16; ++i)
-    {
-        sprintf(result + i * 2, "%02x", digest[i]);
-    }
-    std::cout << "加密结果：" << result << std::endl;
+  for (size_t i = 0, j = 0; j < length; ++i, j += 4) 
+  {
+    output[j] = (u8)(input[i] & 0xff);
+    output[j + 1] = (u8)((input[i] >> 8) & 0xff);
+    output[j + 2] = (u8)((input[i] >> 16) & 0xff);
+    output[j + 3] = (u8)((input[i] >> 24) & 0xff);
+  }
+}
+// usigned char to usigned int
+void MD5::decode(const u8* input, u32* output, size_t length)
+{
+  for (size_t i = 0, j = 0; j < length; ++i, j += 4) 
+  {
+    output[i] = ((u32)input[j]) | (((u32)input[j + 1]) << 8) |
+        (((u32)input[j + 2]) << 16) | (((u32)input[j + 3]) << 24);
+  }
 }
 
-void MD5::transform(unsigned char block[64])
-{
-    // 获取 IV 的 state 数据
-    unsigned int a = state[0], b = result[1], c = result[2], d = state[3];
-
-    unsigned int x[16];
-
-    // 将 8 位 char 转为 32 位 int
-    char2int(x, block, 64);
-
-    // 左循环位移表
-    int s[4][4] = 
-    {
-        { 7, 12, 17, 22 },
-        { 5, 9, 14, 20 },
-        { 4, 11, 16, 23 },
-        { 6, 10, 15, 21 },
-    };
-    // T 表
-    // const unsigned int T[64] = 
-    // {
-	// 0xd76aa478, 0xe8c7b756, 0x242070db, 0xc1bdceee, 0xf57c0faf, 0x4787c62a, 0xa8304613, 0xfd469501,
-	// 0x698098d8, 0x8b44f7af, 0xffff5bb1, 0x895cd7be, 0x6b901122, 0xfd987193, 0xa679438e, 0x49b40821,
-	// 0xf61e2562, 0xc040b340, 0x265e5a51, 0xe9b6c7aa, 0xd62f105d, 0x2441453, 0xd8a1e681, 0xe7d3fbc8,
-	// 0x21e1cde6, 0xc33707d6, 0xf4d50d87, 0x455a14ed, 0xa9e3e905, 0xfcefa3f8, 0x676f02d9, 0x8d2a4c8a,
-	// 0xfffa3942, 0x8771f681, 0x6d9d6122, 0xfde5380c, 0xa4beea44, 0x4bdecfa9, 0xf6bb4b60, 0xbebfbc70,
-	// 0x289b7ec6, 0xeaa127fa, 0xd4ef3085, 0x4881d05, 0xd9d4d039, 0xe6db99e5, 0x1fa27cf8, 0xc4ac5665,
-	// 0xf4292244, 0x432aff97, 0xab9423a7, 0xfc93a039, 0x655b59c3, 0x8f0ccc92, 0xffeff47d, 0x85845dd1,
-	// 0x6fa87e4f, 0xfe2ce6e0, 0xa3014314, 0x4e0811a1, 0xf7537e82, 0xbd3af235, 0x2ad7d2bb, 0xeb86d391,
-    // };
-
-	HF(a, b, c, d, x[0], s[0][0], 0xd76aa478);
-	HF(d, a, b, c, x[1], s[0][1], 0xe8c7b756);
-	HF(c, d, a, b, x[2], s[0][2], 0x242070db);
-	HF(b, c, d, a, x[3], s[0][3], 0xc1bdceee);
-	HF(a, b, c, d, x[4], s[0][0], 0xf57c0faf);
-	HF(d, a, b, c, x[5], s[0][1], 0x4787c62a);
-	HF(c, d, a, b, x[6], s[0][2], 0xa8304613);
-	HF(b, c, d, a, x[7], s[0][3], 0xfd469501); 
-	HF(a, b, c, d, x[8], s[0][0], 0x698098d8);
-	HF(d, a, b, c, x[9], s[0][1], 0x8b44f7af);
-	HF(c, d, a, b, x[10], s[0][2], 0xffff5bb1);
-	HF(b, c, d, a, x[11], s[0][3], 0x895cd7be);
-	HF(a, b, c, d, x[12], s[0][0], 0x6b901122);
-	HF(d, a, b, c, x[13], s[0][1], 0xfd987193);
-	HF(c, d, a, b, x[14], s[0][2], 0xa679438e);
-	HF(b, c, d, a, x[15], s[0][3], 0x49b40821);
-	
-	HG(a, b, c, d, x[1], s[1][0], 0xf61e2562);
-	HG(d, a, b, c, x[6], s[1][1], 0xc040b340);
-	HG(c, d, a, b, x[11], s[1][2], 0x265e5a51);
-	HG(b, c, d, a, x[0], s[1][3], 0xe9b6c7aa); 
-	HG(a, b, c, d, x[5], s[1][0], 0xd62f105d);
-	HG(d, a, b, c, x[10], s[1][1],  0x2441453);
-	HG(c, d, a, b, x[15], s[1][2], 0xd8a1e681);
-	HG(b, c, d, a, x[4], s[1][3], 0xe7d3fbc8);
-	HG(a, b, c, d, x[9], s[1][0], 0x21e1cde6);
-	HG(d, a, b, c, x[14], s[1][1], 0xc33707d6);
-	HG(c, d, a, b, x[3], s[1][2], 0xf4d50d87);
-	HG(b, c, d, a, x[8], s[1][3], 0x455a14ed);
-	HG(a, b, c, d, x[13], s[1][0], 0xa9e3e905);
-	HG(d, a, b, c, x[2], s[1][1], 0xfcefa3f8);
-	HG(c, d, a, b, x[7], s[1][2], 0x676f02d9);
-	HG(b, c, d, a, x[12], s[1][3], 0x8d2a4c8a);
- 
-	HH(a, b, c, d, x[5], s[2][0], 0xfffa3942);
-	HH(d, a, b, c, x[8], s[2][1], 0x8771f681);
-	HH(c, d, a, b, x[11], s[2][2], 0x6d9d6122);
-	HH(b, c, d, a, x[14], s[2][3], 0xfde5380c);
-	HH(a, b, c, d, x[1], s[2][0], 0xa4beea44);
-	HH(d, a, b, c, x[4], s[2][1], 0x4bdecfa9);
-	HH(c, d, a, b, x[7], s[2][2], 0xf6bb4b60);
-	HH(b, c, d, a, x[10], s[2][3], 0xbebfbc70);
-	HH(a, b, c, d, x[13], s[2][0], 0x289b7ec6);
-	HH(d, a, b, c, x[0], s[2][1], 0xeaa127fa); 
-	HH(c, d, a, b, x[3], s[2][2], 0xd4ef3085);
-	HH(b, c, d, a, x[6], s[2][3],  0x4881d05);
-	HH(a, b, c, d, x[9], s[2][0], 0xd9d4d039);
-	HH(d, a, b, c, x[12], s[2][1], 0xe6db99e5);
-	HH(c, d, a, b, x[15], s[2][2], 0x1fa27cf8);
-	HH(b, c, d, a, x[2], s[2][3], 0xc4ac5665);
- 
-	HI(a, b, c, d, x[0], s[3][0], 0xf4292244);
-	HI(d, a, b, c, x[7], s[3][1], 0x432aff97);
-	HI(c, d, a, b, x[14], s[3][2], 0xab9423a7);
-	HI(b, c, d, a, x[5], s[3][3], 0xfc93a039);
-	HI(a, b, c, d, x[12], s[3][0], 0x655b59c3);
-	HI(d, a, b, c, x[3], s[3][1], 0x8f0ccc92);
-	HI(c, d, a, b, x[10], s[3][2], 0xffeff47d);
-	HI(b, c, d, a, x[1], s[3][3], 0x85845dd1);
-	HI(a, b, c, d, x[8], s[3][0], 0x6fa87e4f);
-	HI(d, a, b, c, x[15], s[3][1], 0xfe2ce6e0);
-	HI(c, d, a, b, x[6], s[3][2], 0xa3014314);
-	HI(b, c, d, a, x[13], s[3][3], 0x4e0811a1);
-	HI(a, b, c, d, x[4], s[3][0], 0xf7537e82);
-	HI(d, a, b, c, x[11], s[3][1], 0xbd3af235);
-	HI(c, d, a, b, x[2], s[3][2], 0x2ad7d2bb);
-	HI(b, c, d, a, x[9], s[3][3], 0xeb86d391);
-
-	state[0] += a;
-	state[1] += b;
-	state[2] += c;
-	state[3] += d;
-}
-
-// unsigned char 与 unsigned int 相互转换
-void MD5::int2char(unsigned char* output, const unsigned int* input, int length)
-{
-    for (int i = 0, j = 0; i < length; ++i)
-    {
-        output[j] = input[i] & 0xff;
-        output[j + 1] = (input[i] >> 8) & 0xff;
-        output[j + 2] = (input[i] >> 16) & 0xff;
-        output[j + 3] = (input[i] >> 24) & 0xff;
-        j += 4;
-    }
-}
-void MD5::char2int(unsigned int* output, const unsigned char* input, int length)
-{
-    for (int i = 0, j = 0; i < length; i += 4)
-    {
-        output[j] = input[i] | (input[i + 1] << 8) | (input[i + 2] << 16) | (input[i + 4] << 24);
-        j++;
-    }
-}
-// 循环左移
-unsigned int MD5::shiftLeft(unsigned int num, int pos)
-{
-    return (num << pos) | (num >> (32 - pos));
-}
-// 轮函数
-unsigned int MD5::F(unsigned int b, unsigned int c, unsigned int d)
-{
+u32 MD5::F(u32 b, u32 c, u32 d)
+{   
     return (b & c) | ((~b) & d);
 }
-unsigned int MD5::G(unsigned int b, unsigned int c, unsigned int d)
+u32 MD5::G(u32 b, u32 c, u32 d)
 {
-    return (b & d) | (c & (~d));
+    return (b & d) | (c & (~d)); 
 }
-unsigned int MD5::H(unsigned int b, unsigned int c, unsigned int d)
+u32 MD5::H(u32 b, u32 c, u32 d)
 {
     return (b ^ c ^ d);
 }
-unsigned int MD5::I(unsigned int b, unsigned int c, unsigned int d)
+u32 MD5::I(u32 b, u32 c, u32 d)
 {
     return (c ^ (b | ~d));
 }
-// 压缩函数
-void MD5::HF(unsigned int &a, unsigned int b, unsigned int c, unsigned int d, unsigned int x, unsigned int s, unsigned int Ti)
+
+void MD5::FF(u32& a, u32 b, u32 c, u32 d, u32 x, u32 s, u32 Ti)
 {
-    a = shiftLeft(a + F(b, c, d) + x + Ti, s) + b;
+    a = shift_left(a + F(b, c, d) + x + Ti, s) + b;
 }
-void MD5::HG(unsigned int &a, unsigned int b, unsigned int c, unsigned int d, unsigned int x, unsigned int s, unsigned int Ti)
+void MD5::GG(u32& a, u32 b, u32 c, u32 d, u32 x, u32 s, u32 Ti)
 {
-    a = shiftLeft(a + G(b, c, d) + x + Ti, s) + b;
+    a = shift_left(a + G(b, c, d) + x + Ti, s) + b;
 }
-void MD5::HH(unsigned int &a, unsigned int b, unsigned int c, unsigned int d, unsigned int x, unsigned int s, unsigned int Ti)
+void MD5::HH(u32& a, u32 b, u32 c, u32 d, u32 x, u32 s, u32 Ti)
 {
-    a = shiftLeft(a + H(b, c, d) + x + Ti, s) + b;
+    a = shift_left(a + H(b, c, d) + x + Ti, s) + b;
 }
-void MD5::HI(unsigned int &a, unsigned int b, unsigned int c, unsigned int d, unsigned int x, unsigned int s, unsigned int Ti)
+void MD5::II(u32& a, u32 b, u32 c, u32 d, u32 x, u32 s, u32 Ti)
 {
-    a = shiftLeft(a + I(b, c, d) + x + Ti, s) + b;
+    a = shift_left(a + I(b, c, d) + x + Ti, s) + b;
+}
+
+u32 MD5::shift_left(u32 num, int pos)
+{
+    return (num << pos) | (num >> (32 - pos));
 }
