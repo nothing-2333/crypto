@@ -54,6 +54,8 @@ private:
 
     u8 digest[16];
 
+    
+
     static const u8 padding[64];
 
     static const char hexNumbers[16];
