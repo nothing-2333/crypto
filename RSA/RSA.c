@@ -268,7 +268,6 @@ int main(void)
     if (f == NULL) return EXIT_FAILURE;
 
     len = readFile(f, &buffer, bytes);
-    buffer = "nothing000000";
     fclose(f);
 
     encoded = encodeMessage(len, bytes, buffer, e, n);
