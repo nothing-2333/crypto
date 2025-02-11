@@ -7,9 +7,11 @@ MD5
 
 RC4
 
+TEA
+
 RSA
 
-SHA
+SHA1
 
 CRC32
 
@@ -24,14 +26,6 @@ base64
 SM4
 
 ECC
-
-gzip
-
-zlib
-
-tar
-
-7z
 
 ### 参考链接
 https://blog.csdn.net/OrientalGlass/article/details/129400866
