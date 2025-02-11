@@ -9,6 +9,14 @@ RC4
 
 TEA
 
+XTEA
+
+XXTEA
+
+AES
+
+base64
+
 RSA
 
 SHA1
@@ -17,11 +25,7 @@ CRC32
 
 HMAC
 
-AES
-
 DES
-
-base64
 
 SM4
 
@@ -36,3 +40,5 @@ https://blog.csdn.net/weixin_45031801/article/details/126728082
 https://www.cnblogs.com/myth67/p/13247074.html
 
 https://blog.csdn.net/xiao__1bai/article/details/123307059
+
+https://blog.csdn.net/qq_28205153/article/details/55798628
