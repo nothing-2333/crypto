@@ -1,6 +1,6 @@
-# XTEA
+# XXTEA
 ## 整体梳理
-作为 TEA 的升级版，XTEA 与 TEA 很像。运算改变、加密轮数可以自定义。
+作为 XTEA 的升级版，XXTEA 和 XTEA 一点不像。
 
 ## 特点梳理
 ### 特点一
@@ -12,6 +12,5 @@
 ### 特点三
 运算：
 ```c
-value[0] += (((value[1] << 4) ^ (value[1] >> 5)) + value[1]) ^ (sum + key[sum & 3]);
-value[1] += (((value[0] << 4) ^ (value[0] >> 5)) + value[0]) ^ (sum + key[ (sum >> 11) & 3 ]);
+(((z >> 5 ^ y << 2) + (y >> 3 ^ z << 4)) ^ ((sum ^ y) + (key[(p & 3) ^ e] ^ z)));
 ```
