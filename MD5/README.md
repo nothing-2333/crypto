@@ -16,7 +16,9 @@ state[2] = 0x98badcfe;  // 2562383102
 state[3] = 0x10325476;  // 271733878
 ```
 ### 特点二
-固定为 T 表和循环左移顺序（在 transform 函数中）
+固定的 T 表和循环左移顺序（在 transform 函数中）
+![alt text](image-1.png)
+![alt text](image-2.png)
 ### 特点三
 压缩时，可以看作特征的运算
 ```c++
