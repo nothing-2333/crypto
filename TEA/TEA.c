@@ -1,6 +1,6 @@
 #include "TEA.h"
 
-void encrypt(uint32_t* v, uint32_t* k)
+void encrypt(uint32_t value[2], uint32_t const key[4])
 {
     uint32_t delta = 0x9e3779b9;
     uint32_t sum = 0;
@@ -8,20 +8,20 @@ void encrypt(uint32_t* v, uint32_t* k)
     for (uint32_t i = 0; i < 32; i++)
     {
         sum += delta;
-        v[0] += ((v[1] << 4) + k[0]) ^ (v[1] + sum) ^ ((v[1] >> 5) + k[1]);
-        v[1] += ((v[0] << 4) + k[2]) ^ (v[0] + sum) ^ ((v[0] >> 5) + k[3]);
+        value[0] += ((value[1] << 4) + key[0]) ^ (value[1] + sum) ^ ((value[1] >> 5) + key[1]);
+        value[1] += ((value[0] << 4) + key[2]) ^ (value[0] + sum) ^ ((value[0] >> 5) + key[3]);
     }
 }
 
-void decrypt(uint32_t* v, uint32_t* k)
+void decrypt(uint32_t value[2], uint32_t const key[4])
 {
     uint32_t delta = 0x9e3779b9;
     uint32_t sum = delta * 32;
 
     for (uint32_t i = 0; i < 32; i++)
     {
-        v[1] -= ((v[0] << 4) + k[2]) ^ (v[0] + sum) ^ ((v[0] >> 5) + k[3]);
-        v[0] -= ((v[1] << 4) + k[0]) ^ (v[1] + sum) ^ ((v[1] >> 5) + k[1]);
+        value[1] -= ((value[0] << 4) + key[2]) ^ (value[0] + sum) ^ ((value[0] >> 5) + key[3]);
+        value[0] -= ((value[1] << 4) + key[0]) ^ (value[1] + sum) ^ ((value[1] >> 5) + key[1]);
         sum -= delta;
     }
 }
