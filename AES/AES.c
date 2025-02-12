@@ -1,14 +1,37 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <string.h> 
 
 #include "AES.h"
 
-/**
- * S盒
- */
-static const int S[16][16] = { 
-    0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
+/*****************************************************************************/
+/* 定义                                                       */
+/*****************************************************************************/
+
+// state 的列数。
+#define Nb 4
+
+// Nk 密钥长度，单位为 32 bit
+// Nr 加密轮数。
+#if defined(AES256) && (AES256 == 1)
+    #define Nk 8
+    #define Nr 14
+#elif defined(AES192) && (AES192 == 1)
+    #define Nk 6
+    #define Nr 12
+#else
+    #define Nk 4   
+    #define Nr 10    
+#endif
+
+/*****************************************************************************/
+/* 变量                                                       */
+/*****************************************************************************/
+
+// state_t - 用于在解密过程中存储中间结果的数组。
+typedef uint8_t state_t[4][4];
+
+static const uint8_t sbox[256] = {
+	// 0    1    2      3     4    5     6     7      8    9     A      B    C     D     E     F
+	0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67, 0x2b, 0xfe, 0xd7, 0xab, 0x76,
 	0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59, 0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0,
 	0xb7, 0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1, 0x71, 0xd8, 0x31, 0x15,
 	0x04, 0xc7, 0x23, 0xc3, 0x18, 0x96, 0x05, 0x9a, 0x07, 0x12, 0x80, 0xe2, 0xeb, 0x27, 0xb2, 0x75,
@@ -26,11 +49,9 @@ static const int S[16][16] = {
 	0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16 
 };
 
-/**
- * 逆S盒
- */
-static const int S2[16][16] = { 
-    0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
+#if (defined(CBC) && CBC == 1) || (defined(ECB) && ECB == 1)
+static const uint8_t rsbox[256] = {
+	0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
 	0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb,
 	0x54, 0x7b, 0x94, 0x32, 0xa6, 0xc2, 0x23, 0x3d, 0xee, 0x4c, 0x95, 0x0b, 0x42, 0xfa, 0xc3, 0x4e,
 	0x08, 0x2e, 0xa1, 0x66, 0x28, 0xd9, 0x24, 0xb2, 0x76, 0x5b, 0xa2, 0x49, 0x6d, 0x8b, 0xd1, 0x25,
@@ -47,594 +68,408 @@ static const int S2[16][16] = {
 	0xa0, 0xe0, 0x3b, 0x4d, 0xae, 0x2a, 0xf5, 0xb0, 0xc8, 0xeb, 0xbb, 0x3c, 0x83, 0x53, 0x99, 0x61,
 	0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d 
 };
+#endif
 
-/**
- * 常量轮值表
- */
-static const int Rcon[10] = { 
-    0x01000000, 0x02000000,
-	0x04000000, 0x08000000,
-	0x10000000, 0x20000000,
-	0x40000000, 0x80000000,
-	0x1b000000, 0x36000000 
+// 轮常量字数组 Rcon[i] 包含的值由 x 的 (i-1) 次幂给出，其中 x 是有限域 GF(2^8) 中的元素 {02} 的幂。
+static const uint8_t Rcon[11] = {
+	0x8d, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36 
 };
 
-/**
- * 列混合要用到的矩阵
- */
-static const int colM[4][4] = { 
-    2, 3, 1, 1,
-	1, 2, 3, 1,
-	1, 1, 2, 3,
-	3, 1, 1, 2 
-};
+/*****************************************************************************/
+/* 函数                                                        */
+/*****************************************************************************/
 
-/**
- * 逆列混合用到的矩阵
- */
-static const int deColM[4][4] = {
-     0xe, 0xb, 0xd, 0x9,
-	0x9, 0xe, 0xb, 0xd,
-	0xd, 0x9, 0xe, 0xb,
-	0xb, 0xd, 0x9, 0xe 
-};
-
-/**
- * 获取整形数据的低8位的左4个位
- */
-static int getLeft4Bit(int num)
+static uint8_t getSBoxValue(uint8_t num)
 {
-    int left = num & 0xf0;
-    return left >> 4;
+  	return sbox[num];
 }
-/**
- * 获取整形数据的低8位的右4个位
- */
-static int getRight4Bit(int num) 
+
+// 此函数生成 Nb(Nr+1) 个轮密钥。这些轮密钥在每一轮中用于解密状态。
+static void KeyExpansion(uint8_t* RoundKey, const uint8_t* Key)
 {
-	return num & 0x0f;
-}
+	unsigned i, j, k;
+	uint8_t tempa[4]; // 用于列/行操作
+	
+	// 第一个轮密钥就是密钥本身。
+	for (i = 0; i < Nk; ++i)
+	{
+		RoundKey[(i * 4) + 0] = Key[(i * 4) + 0];
+		RoundKey[(i * 4) + 1] = Key[(i * 4) + 1];
+		RoundKey[(i * 4) + 2] = Key[(i * 4) + 2];
+		RoundKey[(i * 4) + 3] = Key[(i * 4) + 3];
+	}
 
-/**
- * 根据索引，从S盒中获得元素
- */
-static int getNumFromSBox(int index)
-{
-    int row = getLeft4Bit(index);
-    int col = getRight4Bit(index);
-    return S[row][col];
-}
-
-/**
- * 把一个字符转变成整型
- */
-static int getIntFromChar(char c) 
-{
-	int result = (int)c;
-	return result & 0xff;   // 防止负数的符号位扩展
-}
-
-/**
- * 把16个字符转变成4X4的数组，
- * 该矩阵中字节的排列顺序为从上到下，
- * 从左到右依次排列。
- */
-static void convertToIntArray(char* str, int pa[4][4])
-{
-    int k = 0;
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 0; j < 4; j++)
-        {
-            pa[j][i] = getIntFromChar(str[k]);
-            k++;
-        }
-    }
-}
-
-/**
- * 打印4X4的数组
- */
-static void printArray(int a[4][4])
-{
-    for (int i = 0; i < 4; ++i)
-    {
-        for (int j = 0; j < 4; ++j)
-        {
-            printf("a[%d][%d] = 0x%x ", i, j, a[i][j]);
-        }
-        printf("\n");
-    }
-    printf("\n");
-}
-
-/**
- * 打印字符串的ASSCI，
- * 以十六进制显示。
- */
-static void printASSCI(char *str, int len) {
-	for(int i = 0; i < len; i++)
-		printf("0x%x ", getIntFromChar(str[i]));
-	printf("\n");
-}
-
-/**
- * 把连续的4个字符合并成一个4字节的整型
- */
-static int getWordFromStr(char* str)
-{
-    int one = getIntFromChar(str[0]);
-    one = one << 24;
-    int two = getIntFromChar(str[1]);
-    two = two << 16;
-    int there = getIntFromChar(str[2]);
-    there = there << 8;
-    int four = getIntFromChar(str[3]);
-    return one | two | there | four;
-}
-/**
- * 把4字节的整型分散到长度为4的数组里
- */
-static void splitIntToArray(int num, int array[4]) {
-	int one = num >> 24;
-	array[0] = one & 0xff;
-	int two = num >> 16;
-	array[1] = two & 0xff;
-	int three = num >> 8;
-	array[2] = three & 0xff;
-	array[3] = num & 0xff;
-}
-/**
- * 把数组中的第一、二、三和四元素分别作为
- * 4字节整型的第一、二、三和四字节，合并成一个4字节整型
- */
-static int mergeArrayToInt(int array[4]) {
-	int one = array[0] << 24;
-	int two = array[1] << 16;
-	int three = array[2] << 8;
-	int four = array[3];
-	return one | two | three | four;
-}
-
-/**
- * 将数组中的元素循环左移step位
- */
-static void leftLoop4int(int array[4], int step)
-{
-    int temp[4];
-    for (int i = 0; i < 4; ++i)
-    {
-        temp[i] = array[i];
-    }
-
-    int index = step % 4;
-    for (int i = 0; i < 4; i++)
-    {
-        array[i] = temp[index];
-        index++;
-        index = index % 4;
-    }
-}
-
-/**
- * 密钥扩展中的T函数
- */
-static int T(int num, int round)
-{
-    int numArray[4];
-    splitIntToArray(num, numArray);
-    leftLoop4int(numArray, 1);      // 字循环
-
-    // 字节代换
-    for (int i = 0; i < 4; ++i)
-    {
-        numArray[i] = getNumFromSBox(numArray[i]);
-    }
-
-    int result = mergeArrayToInt(numArray);
-    return result ^ Rcon[round];
-}
-
-// 密钥对应的扩展数组
-static int w[44];
-/**
- * 扩展密钥，结果是把w[44]中的每个元素初始化
- */
-static void extendKey(char *key) 
-{
-	for(int i = 0; i < 4; i++)
-		w[i] = getWordFromStr(key + i * 4);
-
-	for(int i = 4, j = 0; i < 44; i++) 
-    {
-		if( i % 4 == 0) 
-        {
-			w[i] = w[i - 4] ^ T(w[i - 1], j);
-			j++;    // 下一轮
+	// 所有其他轮密钥都是从之前的轮密钥中生成的。
+	for (i = Nk; i < Nb * (Nr + 1); ++i)
+	{
+		{
+		k = (i - 1) * 4;
+		tempa[0] = RoundKey[k + 0];
+		tempa[1] = RoundKey[k + 1];
+		tempa[2] = RoundKey[k + 2];
+		tempa[3] = RoundKey[k + 3];
 		}
-        else 
-        {
-			w[i] = w[i - 4] ^ w[i - 1];
+
+		if (i % Nk == 0)
+		{
+		// 此函数将一个字中的 4 个字节向左循环移位一次。
+		// [a0,a1,a2,a3] 变为 [a1,a2,a3,a0]
+
+		// 函数 RotWord()
+		{
+			const uint8_t u8tmp = tempa[0];
+			tempa[0] = tempa[1];
+			tempa[1] = tempa[2];
+			tempa[2] = tempa[3];
+			tempa[3] = u8tmp;
+		}
+
+		// SubWord() 是一个函数，它接收一个四字节输入字，
+		// 并对每个字节应用 S 盒，以产生一个输出字。
+
+		// 函数 Subword()
+		{
+			tempa[0] = getSBoxValue(tempa[0]);
+			tempa[1] = getSBoxValue(tempa[1]);
+			tempa[2] = getSBoxValue(tempa[2]);
+			tempa[3] = getSBoxValue(tempa[3]);
+		}
+
+		tempa[0] = tempa[0] ^ Rcon[i/Nk];
+		}
+	#if defined(AES256) && (AES256 == 1)
+		if (i % Nk == 4)
+		{
+		// 函数 Subword()
+		{
+			tempa[0] = getSBoxValue(tempa[0]);
+			tempa[1] = getSBoxValue(tempa[1]);
+			tempa[2] = getSBoxValue(tempa[2]);
+			tempa[3] = getSBoxValue(tempa[3]);
+		}
+		}
+	#endif
+		j = i * 4; k = (i - Nk) * 4;
+		RoundKey[j + 0] = RoundKey[k + 0] ^ tempa[0];
+		RoundKey[j + 1] = RoundKey[k + 1] ^ tempa[1];
+		RoundKey[j + 2] = RoundKey[k + 2] ^ tempa[2];
+		RoundKey[j + 3] = RoundKey[k + 3] ^ tempa[3];
+	}
+}
+
+void AES_init_ctx(AES_ctx* ctx, const uint8_t* key)
+{
+  	KeyExpansion(ctx->RoundKey, key);
+}
+#if (defined(CBC) && (CBC == 1)) || (defined(CTR) && (CTR == 1))
+void AES_init_ctx_iv(AES_ctx* ctx, const uint8_t* key, const uint8_t* iv)
+{
+	KeyExpansion(ctx->RoundKey, key);
+	memcpy (ctx->Iv, iv, AES_BLOCKLEN);
+}
+void AES_ctx_set_iv(AES_ctx* ctx, const uint8_t* iv)
+{
+  	memcpy (ctx->Iv, iv, AES_BLOCKLEN);
+}
+#endif
+
+// 此函数通过 XOR 操作将轮密钥添加到 state 中。
+static void AddRoundKey(uint8_t round, state_t* state, const uint8_t* RoundKey)
+{
+	uint8_t i, j;
+	for (i = 0; i < 4; ++i)
+	{
+		for (j = 0; j < 4; ++j)
+		{
+			(*state)[i][j] ^= RoundKey[(round * Nb * 4) + (i * Nb) + j];
 		}
 	}
-
 }
 
-
-/**
- * 轮密钥加
- */
-static void addRoundKey(int array[4][4], int round)
+// SubBytes 函数将 state 矩阵中的值替换为 S 盒中的值。
+static void SubBytes(state_t* state)
 {
-    int warray[4];
-    for (int i = 0; i < 4; i++)
-    {
-        splitIntToArray(w[round * 4 + i], warray);
-
-        for (int j = 0; j < 4; ++j)
-        {
-            array[j][i] = array[j][i] ^ warray[j];
-        }
-    }
-}
-
-/**
- * 字节代换
- */
-static void subBytes(int array[4][4])
-{
-    for (int i = 0; i < 4; ++i)
-    {
-        for (int j = 0; j < 4; ++j)
-        {
-            array[i][j] = getNumFromSBox(array[i][j]);
-        }
-    }
-}
-
-/**
- * 行移位
- */
-static void shiftRows(int array[4][4])
-{
-    int rowTwo[4], rowThree[4], rowFour[4];
-
-	// 复制状态矩阵的第2, 3, 4行
-	for(int i = 0; i < 4; i++) 
-    {
-		rowTwo[i] = array[1][i];
-		rowThree[i] = array[2][i];
-		rowFour[i] = array[3][i];
-	}
-
-    // 循环左移相应的位数
-    leftLoop4int(rowTwo, 1);
-	leftLoop4int(rowThree, 2);
-	leftLoop4int(rowFour, 3);
-
-    // 把左移后的行复制回状态矩阵中
-	for(int i = 0; i < 4; i++) 
-    {
-		array[1][i] = rowTwo[i];
-		array[2][i] = rowThree[i];
-		array[3][i] = rowFour[i];
-	}
-}
-
-static int GFMul2(int s) 
-{
-	int result = s << 1;
-	int a7 = result & 0x00000100;
-
-	if(a7 != 0) {
-		result = result & 0x000000ff;
-		result = result ^ 0x1b;
-	}
-
-	return result;
-}
-static int GFMul3(int s) 
-{
-	return GFMul2(s) ^ s;
-}
-static int GFMul4(int s) 
-{
-	return GFMul2(GFMul2(s));
-}
-static int GFMul8(int s) 
-{
-	return GFMul2(GFMul4(s));
-}
-static int GFMul9(int s) 
-{
-	return GFMul8(s) ^ s;
-}
-static int GFMul11(int s) 
-{
-	return GFMul9(s) ^ GFMul2(s);
-}
-static int GFMul12(int s) 
-{
-	return GFMul8(s) ^ GFMul4(s);
-}
-static int GFMul13(int s) 
-{
-	return GFMul12(s) ^ s;
-}
-static int GFMul14(int s) 
-{
-	return GFMul12(s) ^ GFMul2(s);
-}
-/**
- * GF上的二元运算
- */
-static int GFMul(int n, int s) 
-{
-	int result;
-
-	if(n == 1)
-		result = s;
-	else if(n == 2)
-		result = GFMul2(s);
-	else if(n == 3)
-		result = GFMul3(s);
-	else if(n == 0x9)
-		result = GFMul9(s);
-	else if(n == 0xb)   // 11
-		result = GFMul11(s);
-	else if(n == 0xd)   // 13
-		result = GFMul13(s);
-	else if(n == 0xe)   // 14
-		result = GFMul14(s);
-
-	return result;
-}
-
-/**
- * 列混合
- */
-static void mixColumns(int array[4][4]) {
-
-	int tempArray[4][4];
-
-	for(int i = 0; i < 4; i++)
-		for(int j = 0; j < 4; j++)
-			tempArray[i][j] = array[i][j];
-
-	for(int i = 0; i < 4; i++)
-		for(int j = 0; j < 4; j++)
-        {
-			array[i][j] = GFMul(colM[i][0], tempArray[0][j]) ^ GFMul(colM[i][1], tempArray[1][j]) 
-				^ GFMul(colM[i][2], tempArray[2][j]) ^ GFMul(colM[i][3], tempArray[3][j]);
+	uint8_t i, j;
+	for (i = 0; i < 4; ++i)
+	{
+		for (j = 0; j < 4; ++j)
+		{
+		(*state)[j][i] = getSBoxValue((*state)[j][i]);
 		}
-}
-
-/**
- * 把4X4数组转回字符串
- */
-static void convertArrayToStr(int array[4][4], char* str) 
-{
-	for(int i = 0; i < 4; i++)
-		for(int j = 0; j < 4; j++)
-			*str++ = (char)array[j][i];	
-}
-
-
-/**
- * 检查密钥长度
- */
-static int checkKeyLen(int len) 
-{
-	if(len == 16)
-		return 1;
-	else
-		return 0;
-}
-
-/**
- * 参数 p: 明文的字符串数组。
- * 参数 plen: 明文的长度。
- * 参数 key: 密钥的字符串数组。
- */
-void encrypt(char* p, int p_len, char* key)
-{
-    int key_len = strlen(key);
-    if (p_len == 0 || p_len % 16 != 0)
-    {
-        printf("明文字符长度必须为16的倍数！\n");
-        exit(0);
-    }
-
-    if (!checkKeyLen(key_len))
-    {
-        printf("密钥字符长度错误！长度必须为16、24和32。当前长度为%d\n", key_len);
-		exit(0);
-	}
-
-    extendKey(key); // 扩展密钥
-    int pArray[4][4];
-    
-    for (int k = 0; k < p_len; k += 16)
-    {
-        convertToIntArray(p + k, pArray);
-        addRoundKey(pArray, 0); // 一开始的轮密钥加
-
-        // 前9轮
-        for (int i = 1; i < 10; ++i)
-        {
-            subBytes(pArray);   // 字节代换
-            shiftRows(pArray);  // 行移位
-            mixColumns(pArray); // 列混合
-            addRoundKey(pArray, i);
-        }
-        // 第10轮
-        subBytes(pArray);   // 字节代换
-        shiftRows(pArray);  // 行移位
-        addRoundKey(pArray, 10);
-        convertArrayToStr(pArray, p + k);
-    }
-}
-
-/**
- * 根据索引从逆S盒中获取值
- */
-static int getNumFromS2Box(int index) 
-{
-	int row = getLeft4Bit(index);
-	int col = getRight4Bit(index);
-	return S2[row][col];
-}
-
-/**
- * 逆字节变换
- */
-static void deSubBytes(int array[4][4]) 
-{
-	for(int i = 0; i < 4; i++)
-		for(int j = 0; j < 4; j++)
-			array[i][j] = getNumFromS2Box(array[i][j]);
-}
-
-/**
- * 把4个元素的数组循环右移step位
- */
-static void rightLoop4int(int array[4], int step) 
-{
-	int temp[4];
-	for(int i = 0; i < 4; i++)
-		temp[i] = array[i];
-
-	int index = step % 4;
-	index = 3 - index;
-	for(int i = 3; i >= 0; i--) {
-		array[i] = temp[index];
-		index--;
-		index = index == -1 ? 3 : index;
 	}
 }
 
-/**
- * 逆行移位
- */
-static void deShiftRows(int array[4][4]) 
+// ShiftRows() 函数将状态矩阵中的行向左循环移位。
+// 每一行的移位偏移量不同。
+// 偏移量 = 行号。因此，第一行不移位。
+static void ShiftRows(state_t* state)
 {
-	int rowTwo[4], rowThree[4], rowFour[4];
-	for(int i = 0; i < 4; i++) 
-    {
-		rowTwo[i] = array[1][i];
-		rowThree[i] = array[2][i];
-		rowFour[i] = array[3][i];
-	}
+	uint8_t temp;
 
-	rightLoop4int(rowTwo, 1);
-	rightLoop4int(rowThree, 2);
-	rightLoop4int(rowFour, 3);
+	// 将第一行向左循环移位 1 列
+	temp           = (*state)[0][1];
+	(*state)[0][1] = (*state)[1][1];
+	(*state)[1][1] = (*state)[2][1];
+	(*state)[2][1] = (*state)[3][1];
+	(*state)[3][1] = temp;
 
-	for(int i = 0; i < 4; i++) 
-    {
-		array[1][i] = rowTwo[i];
-		array[2][i] = rowThree[i];
-		array[3][i] = rowFour[i];
+	// 将第二行向左循环移位 2 列
+	temp           = (*state)[0][2];
+	(*state)[0][2] = (*state)[2][2];
+	(*state)[2][2] = temp;
+
+	temp           = (*state)[1][2];
+	(*state)[1][2] = (*state)[3][2];
+	(*state)[3][2] = temp;
+
+	// 将第三行向左循环移位 3 列
+	temp           = (*state)[0][3];
+	(*state)[0][3] = (*state)[3][3];
+	(*state)[3][3] = (*state)[2][3];
+	(*state)[2][3] = (*state)[1][3];
+	(*state)[1][3] = temp;
+}
+
+static uint8_t xtime(uint8_t x)
+{
+  	return ((x << 1) ^ (((x >> 7) & 1) * 0x1b));
+}
+
+// MixColumns 函数对 state 矩阵的列进行混合
+static void MixColumns(state_t* state)
+{
+	uint8_t i;
+	uint8_t Tmp, Tm, t;
+	for (i = 0; i < 4; ++i)
+	{  
+		t   = (*state)[i][0];
+		Tmp = (*state)[i][0] ^ (*state)[i][1] ^ (*state)[i][2] ^ (*state)[i][3];
+		Tm  = (*state)[i][0] ^ (*state)[i][1]; Tm = xtime(Tm);  (*state)[i][0] ^= Tm ^ Tmp;
+		Tm  = (*state)[i][1] ^ (*state)[i][2]; Tm = xtime(Tm);  (*state)[i][1] ^= Tm ^ Tmp;
+		Tm  = (*state)[i][2] ^ (*state)[i][3]; Tm = xtime(Tm);  (*state)[i][2] ^= Tm ^ Tmp;
+		Tm  = (*state)[i][3] ^ t;              Tm = xtime(Tm);  (*state)[i][3] ^= Tm ^ Tmp;
 	}
 }
 
-/**
- * 逆列混合
- */
-static void deMixColumns(int array[4][4]) 
+// Multiply 用于在有限域 GF(2^8) 中进行数字乘法。
+static uint8_t Multiply(uint8_t x, uint8_t y)
 {
-	int tempArray[4][4];
+  	return (((y & 1) * x) ^
+       ((y >> 1 & 1) * xtime(x)) ^
+       ((y >> 2 & 1) * xtime(xtime(x))) ^
+       ((y >> 3 & 1) * xtime(xtime(xtime(x)))) ^
+       ((y >> 4 & 1) * xtime(xtime(xtime(xtime(x)))))); 
+}
 
-	for(int i = 0; i < 4; i++)
-		for(int j = 0; j < 4; j++)
-			tempArray[i][j] = array[i][j];
+#if (defined(CBC) && CBC == 1) || (defined(ECB) && ECB == 1)
 
-	for(int i = 0; i < 4; i++)
-		for(int j = 0; j < 4; j++)
-        {
-			array[i][j] = GFMul(deColM[i][0],tempArray[0][j]) ^ GFMul(deColM[i][1],tempArray[1][j]) 
-				^ GFMul(deColM[i][2],tempArray[2][j]) ^ GFMul(deColM[i][3], tempArray[3][j]);
+static uint8_t getSBoxInvert(uint8_t num)
+{
+  	return rsbox[num];
+}
+
+// InvMixColumns 是 MixColumns 的逆操作，用于解密过程。它通过有限域 GF(2^8) 中的乘法和异或操作，将状态矩阵的每一列进行逆向混合。
+static void InvMixColumns(state_t* state)
+{
+	int i;
+	uint8_t a, b, c, d;
+	for (i = 0; i < 4; ++i)
+	{ 
+		a = (*state)[i][0];
+		b = (*state)[i][1];
+		c = (*state)[i][2];
+		d = (*state)[i][3];
+
+		(*state)[i][0] = Multiply(a, 0x0e) ^ Multiply(b, 0x0b) ^ Multiply(c, 0x0d) ^ Multiply(d, 0x09);
+		(*state)[i][1] = Multiply(a, 0x09) ^ Multiply(b, 0x0e) ^ Multiply(c, 0x0b) ^ Multiply(d, 0x0d);
+		(*state)[i][2] = Multiply(a, 0x0d) ^ Multiply(b, 0x09) ^ Multiply(c, 0x0e) ^ Multiply(d, 0x0b);
+		(*state)[i][3] = Multiply(a, 0x0b) ^ Multiply(b, 0x0d) ^ Multiply(c, 0x09) ^ Multiply(d, 0x0e);
+	}
+}
+
+// InvSubBytes 是 SubBytes 的逆操作，用于解密过程。它通过 S 盒的逆向替换值，将状态矩阵中的每个字节进行逆向替换。
+static void InvSubBytes(state_t* state)
+{
+	uint8_t i, j;
+	for (i = 0; i < 4; ++i)
+	{
+		for (j = 0; j < 4; ++j)
+		{
+		(*state)[j][i] = getSBoxInvert((*state)[j][i]);
 		}
+	}
 }
 
-/**
- * 把两个4X4数组进行异或
- */
-static void addRoundTowArray(int aArray[4][4], int bArray[4][4]) 
+// InvShiftRows 是 ShiftRows 的逆操作，用于解密过程。它通过向右循环移位，将状态矩阵的每一行恢复到加密前的状态。
+static void InvShiftRows(state_t* state)
 {
-	for(int i = 0; i < 4; i++)
-		for(int j = 0; j < 4; j++)
-			aArray[i][j] = aArray[i][j] ^ bArray[i][j];
+	uint8_t temp;
+
+	// 将第一行向右循环移位 1 列
+	temp = (*state)[3][1];
+	(*state)[3][1] = (*state)[2][1];
+	(*state)[2][1] = (*state)[1][1];
+	(*state)[1][1] = (*state)[0][1];
+	(*state)[0][1] = temp;
+
+	// 将第二行向右循环移位 2 列
+	temp = (*state)[0][2];
+	(*state)[0][2] = (*state)[2][2];
+	(*state)[2][2] = temp;
+
+	temp = (*state)[1][2];
+	(*state)[1][2] = (*state)[3][2];
+	(*state)[3][2] = temp;
+
+	// 将第三行向右循环移位 3 列
+	temp = (*state)[0][3];
+	(*state)[0][3] = (*state)[1][3];
+	(*state)[1][3] = (*state)[2][3];
+	(*state)[2][3] = (*state)[3][3];
+	(*state)[3][3] = temp;
 }
+#endif
 
-/**
- * 从4个32位的密钥字中获得4X4数组，
- * 用于进行逆列混合
- */
-static void getArrayFrom4W(int i, int array[4][4]) 
+// 加密函数
+static void Cipher(state_t* state, const uint8_t* RoundKey)
 {
-	int index = i * 4;
-	int colOne[4], colTwo[4], colThree[4], colFour[4];
-	splitIntToArray(w[index], colOne);
-	splitIntToArray(w[index + 1], colTwo);
-	splitIntToArray(w[index + 2], colThree);
-	splitIntToArray(w[index + 3], colFour);
+  uint8_t round = 0;
 
-	for(int i = 0; i < 4; i++) 
-    {
-		array[i][0] = colOne[i];
-		array[i][1] = colTwo[i];
-		array[i][2] = colThree[i];
-		array[i][3] = colFour[i];
-	}
+  // 在开始轮操作之前，将第一轮密钥添加到状态中
+  AddRoundKey(0, state, RoundKey);
 
-}
-
-/**
- * 参数 c: 密文的字符串数组。
- * 参数 clen: 密文的长度。
- * 参数 key: 密钥的字符串数组。
- */
-void decrypt(char* c, int c_len, char* key)
-{
-    int key_len = strlen(key);
-	if(c_len == 0 || c_len % 16 != 0) 
-    {
-		printf("密文字符长度必须为16的倍数！现在的长度为%d\n", c_len);
-		exit(0);
-	}
-
-	if(!checkKeyLen(key_len)) 
-    {
-		printf("密钥字符长度错误！长度必须为16、24和32。当前长度为%d\n", key_len);
-		exit(0);
-	}
-
-    extendKey(key); // 扩展密钥
-    int cArray[4][4];
-    for (int k = 0; k < c_len; k += 16)
-    {
-        convertToIntArray(c + k, cArray);
-
-        addRoundKey(cArray, 10);
-
-        int wArray[4][4];
-        for (int i = 9; i >= 1; i--)
-        {
-            deSubBytes(cArray);
-
-            deShiftRows(cArray);
-
-            deMixColumns(cArray);
-            getArrayFrom4W(i, wArray);
-            deMixColumns(wArray);
-
-            addRoundTowArray(cArray, wArray);
-        }
-
-        deSubBytes(cArray);
-        deShiftRows(cArray);
-        addRoundKey(cArray, 0);
-        convertArrayToStr(cArray, c + k);
+  // 总共有 Nr 轮。
+  // 前 Nr-1 轮是相同的。
+  // 这些 Nr 轮在下面的循环中执行。
+  // 最后一轮没有 MixColumns()
+  for (round = 1; ; ++round)
+  {
+    SubBytes(state);
+    ShiftRows(state);
+    if (round == Nr) {
+      break;
     }
+    MixColumns(state);
+    AddRoundKey(round, state, RoundKey);
+  }
+  // 在最后一轮添加轮密钥
+  AddRoundKey(Nr, state, RoundKey);
 }
+
+// 解密函数
+#if (defined(CBC) && CBC == 1) || (defined(ECB) && ECB == 1)
+static void InvCipher(state_t* state, const uint8_t* RoundKey)
+{
+	uint8_t round = 0;
+
+	// 在开始轮操作之前，将最后一轮密钥添加到状态中。
+	AddRoundKey(Nr, state, RoundKey);
+
+	// 总共有 Nr 轮。
+	// 前 Nr-1 轮是相同的。
+	// 这些 Nr 轮在下面的循环中执行。
+	// 最后一轮没有 InvMixColumns()
+	for (round = (Nr - 1); ; --round)
+	{
+		InvShiftRows(state);
+		InvSubBytes(state);
+		AddRoundKey(round, state, RoundKey);
+		if (round == 0) {
+		break;
+		}
+		InvMixColumns(state);
+	}
+}
+#endif
+
+#if defined(ECB) && (ECB == 1)
+void AES_ECB_encrypt_buffer(const AES_ctx* ctx, uint8_t* buf)
+{
+	Cipher((state_t*)buf, ctx->RoundKey);
+}
+
+void AES_ECB_decrypt_buffer(const AES_ctx* ctx, uint8_t* buf)
+{
+  	InvCipher((state_t*)buf, ctx->RoundKey);
+}
+#endif
+
+#if defined(CBC) && (CBC == 1)
+
+static void XorWithIv(uint8_t* buf, const uint8_t* Iv)
+{
+	uint8_t i;
+	for (i = 0; i < AES_BLOCKLEN; ++i) // 无论密钥大小如何，块大小始终为 128 位。
+	{
+		buf[i] ^= Iv[i];
+	}
+}
+
+void AES_CBC_encrypt_buffer(AES_ctx *ctx, uint8_t* buf, size_t length)
+{
+	size_t i;
+	uint8_t *Iv = ctx->Iv;
+	for (i = 0; i < length; i += AES_BLOCKLEN)
+	{
+		XorWithIv(buf, Iv);
+		Cipher((state_t*)buf, ctx->RoundKey);
+		Iv = buf;
+		buf += AES_BLOCKLEN;
+	}
+	// 为下次调用储存 Iv
+	memcpy(ctx->Iv, Iv, AES_BLOCKLEN);
+}
+
+void AES_CBC_decrypt_buffer(AES_ctx* ctx, uint8_t* buf, size_t length)
+{
+	size_t i;
+	uint8_t storeNextIv[AES_BLOCKLEN];
+	for (i = 0; i < length; i += AES_BLOCKLEN)
+	{
+		memcpy(storeNextIv, buf, AES_BLOCKLEN);
+		InvCipher((state_t*)buf, ctx->RoundKey);
+		XorWithIv(buf, ctx->Iv);
+		memcpy(ctx->Iv, storeNextIv, AES_BLOCKLEN);
+		buf += AES_BLOCKLEN;
+	}
+}
+
+#endif
+
+#if defined(CTR) && (CTR == 1)
+
+// 对称操作：加密和解密使用相同的函数。注意：任何 IV/nonce 都不应与相同的密钥重复使用
+void AES_CTR_xcrypt_buffer(AES_ctx* ctx, uint8_t* buf, size_t length)
+{
+	uint8_t buffer[AES_BLOCKLEN];
+	
+	size_t i;
+	int bi;
+	for (i = 0, bi = AES_BLOCKLEN; i < length; ++i, ++bi)
+	{
+		if (bi == AES_BLOCKLEN) /* 我们需要重新生成 buffer 中的 XOR 补码 */
+		{
+		
+		memcpy(buffer, ctx->Iv, AES_BLOCKLEN);
+		Cipher((state_t*)buffer, ctx->RoundKey);
+
+		/* 增加 IV 并处理溢出 */
+		for (bi = (AES_BLOCKLEN - 1); bi >= 0; --bi)
+		{
+		/* inc 将会溢出 */
+			if (ctx->Iv[bi] == 255)
+		{
+			ctx->Iv[bi] = 0;
+			continue;
+			} 
+			ctx->Iv[bi] += 1;
+			break;   
+		}
+		bi = 0;
+		}
+
+		buf[i] = (buf[i] ^ buffer[bi]);
+	}
+}
+
+#endif
