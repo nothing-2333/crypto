@@ -9,7 +9,7 @@
 // state 的列数。
 #define Nb 4
 
-// Nk 密钥长度，单位为 32 bit
+// Nk 密钥的长度，单位为 32 bit
 // Nr 加密轮数。
 #if defined(AES256) && (AES256 == 1)
     #define Nk 8
@@ -49,7 +49,7 @@ static const uint8_t sbox[256] = {
 	0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16 
 };
 
-#if (defined(CBC) && CBC == 1) || (defined(ECB) && ECB == 1)
+
 static const uint8_t rsbox[256] = {
 	0x52, 0x09, 0x6a, 0xd5, 0x30, 0x36, 0xa5, 0x38, 0xbf, 0x40, 0xa3, 0x9e, 0x81, 0xf3, 0xd7, 0xfb,
 	0x7c, 0xe3, 0x39, 0x82, 0x9b, 0x2f, 0xff, 0x87, 0x34, 0x8e, 0x43, 0x44, 0xc4, 0xde, 0xe9, 0xcb,
@@ -68,7 +68,7 @@ static const uint8_t rsbox[256] = {
 	0xa0, 0xe0, 0x3b, 0x4d, 0xae, 0x2a, 0xf5, 0xb0, 0xc8, 0xeb, 0xbb, 0x3c, 0x83, 0x53, 0x99, 0x61,
 	0x17, 0x2b, 0x04, 0x7e, 0xba, 0x77, 0xd6, 0x26, 0xe1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0c, 0x7d 
 };
-#endif
+
 
 // 轮常量字数组 Rcon[i] 包含的值由 x 的 (i-1) 次幂给出，其中 x 是有限域 GF(2^8) 中的元素 {02} 的幂。
 static const uint8_t Rcon[11] = {
@@ -103,53 +103,54 @@ static void KeyExpansion(uint8_t* RoundKey, const uint8_t* Key)
 	for (i = Nk; i < Nb * (Nr + 1); ++i)
 	{
 		{
-		k = (i - 1) * 4;
-		tempa[0] = RoundKey[k + 0];
-		tempa[1] = RoundKey[k + 1];
-		tempa[2] = RoundKey[k + 2];
-		tempa[3] = RoundKey[k + 3];
+			k = (i - 1) * 4;
+			tempa[0] = RoundKey[k + 0];
+			tempa[1] = RoundKey[k + 1];
+			tempa[2] = RoundKey[k + 2];
+			tempa[3] = RoundKey[k + 3];
 		}
 
 		if (i % Nk == 0)
 		{
-		// 此函数将一个字中的 4 个字节向左循环移位一次。
-		// [a0,a1,a2,a3] 变为 [a1,a2,a3,a0]
+			// 此函数将一个字中的 4 个字节向左循环移位一次。
+			// [a0,a1,a2,a3] 变为 [a1,a2,a3,a0]
 
-		// 函数 RotWord()
-		{
-			const uint8_t u8tmp = tempa[0];
-			tempa[0] = tempa[1];
-			tempa[1] = tempa[2];
-			tempa[2] = tempa[3];
-			tempa[3] = u8tmp;
-		}
+			// 函数 RotWord()
+			{
+				const uint8_t u8tmp = tempa[0];
+				tempa[0] = tempa[1];
+				tempa[1] = tempa[2];
+				tempa[2] = tempa[3];
+				tempa[3] = u8tmp;
+			}
 
-		// SubWord() 是一个函数，它接收一个四字节输入字，
-		// 并对每个字节应用 S 盒，以产生一个输出字。
+			// SubWord() 是一个函数，它接收一个四字节输入字，
+			// 并对每个字节应用 S 盒，以产生一个输出字。
 
-		// 函数 Subword()
-		{
-			tempa[0] = getSBoxValue(tempa[0]);
-			tempa[1] = getSBoxValue(tempa[1]);
-			tempa[2] = getSBoxValue(tempa[2]);
-			tempa[3] = getSBoxValue(tempa[3]);
-		}
+			// 函数 Subword()
+			{
+				tempa[0] = getSBoxValue(tempa[0]);
+				tempa[1] = getSBoxValue(tempa[1]);
+				tempa[2] = getSBoxValue(tempa[2]);
+				tempa[3] = getSBoxValue(tempa[3]);
+			}
 
-		tempa[0] = tempa[0] ^ Rcon[i/Nk];
+			tempa[0] = tempa[0] ^ Rcon[i/Nk];
 		}
 	#if defined(AES256) && (AES256 == 1)
 		if (i % Nk == 4)
 		{
-		// 函数 Subword()
-		{
-			tempa[0] = getSBoxValue(tempa[0]);
-			tempa[1] = getSBoxValue(tempa[1]);
-			tempa[2] = getSBoxValue(tempa[2]);
-			tempa[3] = getSBoxValue(tempa[3]);
-		}
+			// 函数 Subword()
+			{
+				tempa[0] = getSBoxValue(tempa[0]);
+				tempa[1] = getSBoxValue(tempa[1]);
+				tempa[2] = getSBoxValue(tempa[2]);
+				tempa[3] = getSBoxValue(tempa[3]);
+			}
 		}
 	#endif
-		j = i * 4; k = (i - Nk) * 4;
+		j = i * 4; 
+		k = (i - Nk) * 4;
 		RoundKey[j + 0] = RoundKey[k + 0] ^ tempa[0];
 		RoundKey[j + 1] = RoundKey[k + 1] ^ tempa[1];
 		RoundKey[j + 2] = RoundKey[k + 2] ^ tempa[2];
@@ -161,17 +162,17 @@ void AES_init_ctx(AES_ctx* ctx, const uint8_t* key)
 {
   	KeyExpansion(ctx->RoundKey, key);
 }
-#if (defined(CBC) && (CBC == 1)) || (defined(CTR) && (CTR == 1))
+
 void AES_init_ctx_iv(AES_ctx* ctx, const uint8_t* key, const uint8_t* iv)
 {
 	KeyExpansion(ctx->RoundKey, key);
-	memcpy (ctx->Iv, iv, AES_BLOCKLEN);
+	memcpy(ctx->Iv, iv, AES_BLOCKLEN);
 }
 void AES_ctx_set_iv(AES_ctx* ctx, const uint8_t* iv)
 {
-  	memcpy (ctx->Iv, iv, AES_BLOCKLEN);
+  	memcpy(ctx->Iv, iv, AES_BLOCKLEN);
 }
-#endif
+
 
 // 此函数通过 XOR 操作将轮密钥添加到 state 中。
 static void AddRoundKey(uint8_t round, state_t* state, const uint8_t* RoundKey)
@@ -230,6 +231,7 @@ static void ShiftRows(state_t* state)
 	(*state)[1][3] = temp;
 }
 
+// 对一个8位无符号整数 x 进行乘以2的操作，同时处理有限域中的溢出问题
 static uint8_t xtime(uint8_t x)
 {
   	return ((x << 1) ^ (((x >> 7) & 1) * 0x1b));
@@ -260,8 +262,6 @@ static uint8_t Multiply(uint8_t x, uint8_t y)
        ((y >> 3 & 1) * xtime(xtime(xtime(x)))) ^
        ((y >> 4 & 1) * xtime(xtime(xtime(xtime(x)))))); 
 }
-
-#if (defined(CBC) && CBC == 1) || (defined(ECB) && ECB == 1)
 
 static uint8_t getSBoxInvert(uint8_t num)
 {
@@ -328,36 +328,33 @@ static void InvShiftRows(state_t* state)
 	(*state)[2][3] = (*state)[3][3];
 	(*state)[3][3] = temp;
 }
-#endif
+
 
 // 加密函数
 static void Cipher(state_t* state, const uint8_t* RoundKey)
 {
-  uint8_t round = 0;
+	uint8_t round = 0;
 
-  // 在开始轮操作之前，将第一轮密钥添加到状态中
-  AddRoundKey(0, state, RoundKey);
+	// 在开始轮操作之前，将第一轮密钥添加到状态中
+	AddRoundKey(0, state, RoundKey);
 
-  // 总共有 Nr 轮。
-  // 前 Nr-1 轮是相同的。
-  // 这些 Nr 轮在下面的循环中执行。
-  // 最后一轮没有 MixColumns()
-  for (round = 1; ; ++round)
-  {
-    SubBytes(state);
-    ShiftRows(state);
-    if (round == Nr) {
-      break;
-    }
-    MixColumns(state);
-    AddRoundKey(round, state, RoundKey);
-  }
-  // 在最后一轮添加轮密钥
-  AddRoundKey(Nr, state, RoundKey);
+	// 总共有 Nr 轮。
+	// 前 Nr-1 轮是相同的。
+	// 这些 Nr 轮在下面的循环中执行。
+	// 最后一轮没有 MixColumns()
+	for (round = 1; ; ++round)
+	{
+		SubBytes(state);
+		ShiftRows(state);
+		if (round == Nr) break;
+		MixColumns(state);
+		AddRoundKey(round, state, RoundKey);
+	}
+	// 在最后一轮添加轮密钥
+	AddRoundKey(Nr, state, RoundKey);
 }
 
 // 解密函数
-#if (defined(CBC) && CBC == 1) || (defined(ECB) && ECB == 1)
 static void InvCipher(state_t* state, const uint8_t* RoundKey)
 {
 	uint8_t round = 0;
@@ -380,9 +377,8 @@ static void InvCipher(state_t* state, const uint8_t* RoundKey)
 		InvMixColumns(state);
 	}
 }
-#endif
 
-#if defined(ECB) && (ECB == 1)
+
 void AES_ECB_encrypt_buffer(const AES_ctx* ctx, uint8_t* buf)
 {
 	Cipher((state_t*)buf, ctx->RoundKey);
@@ -392,9 +388,7 @@ void AES_ECB_decrypt_buffer(const AES_ctx* ctx, uint8_t* buf)
 {
   	InvCipher((state_t*)buf, ctx->RoundKey);
 }
-#endif
 
-#if defined(CBC) && (CBC == 1)
 
 static void XorWithIv(uint8_t* buf, const uint8_t* Iv)
 {
@@ -434,10 +428,6 @@ void AES_CBC_decrypt_buffer(AES_ctx* ctx, uint8_t* buf, size_t length)
 	}
 }
 
-#endif
-
-#if defined(CTR) && (CTR == 1)
-
 // 对称操作：加密和解密使用相同的函数。注意：任何 IV/nonce 都不应与相同的密钥重复使用
 void AES_CTR_xcrypt_buffer(AES_ctx* ctx, uint8_t* buf, size_t length)
 {
@@ -449,27 +439,25 @@ void AES_CTR_xcrypt_buffer(AES_ctx* ctx, uint8_t* buf, size_t length)
 	{
 		if (bi == AES_BLOCKLEN) /* 我们需要重新生成 buffer 中的 XOR 补码 */
 		{
-		
-		memcpy(buffer, ctx->Iv, AES_BLOCKLEN);
-		Cipher((state_t*)buffer, ctx->RoundKey);
+			memcpy(buffer, ctx->Iv, AES_BLOCKLEN);
+			Cipher((state_t*)buffer, ctx->RoundKey);
 
-		/* 增加 IV 并处理溢出 */
-		for (bi = (AES_BLOCKLEN - 1); bi >= 0; --bi)
-		{
-		/* inc 将会溢出 */
-			if (ctx->Iv[bi] == 255)
-		{
-			ctx->Iv[bi] = 0;
-			continue;
-			} 
-			ctx->Iv[bi] += 1;
-			break;   
-		}
-		bi = 0;
+			/* 增加 IV 并处理溢出 */
+			for (bi = (AES_BLOCKLEN - 1); bi >= 0; --bi)
+			{
+				/* inc 将会溢出 */
+				if (ctx->Iv[bi] == 255)
+				{
+					ctx->Iv[bi] = 0;
+					continue;
+				} 
+				ctx->Iv[bi] += 1;
+				break;   
+			}
+			bi = 0;
 		}
 
 		buf[i] = (buf[i] ^ buffer[bi]);
 	}
 }
 
-#endif
