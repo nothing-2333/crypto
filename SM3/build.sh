@@ -1,0 +1,1 @@
+gcc -o main main.c SM3.c -g
