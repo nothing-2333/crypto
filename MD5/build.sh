@@ -1,0 +1,1 @@
+gcc -o main main.c MD5.c -g
