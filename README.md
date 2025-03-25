@@ -54,3 +54,9 @@ https://github.com/NEWPLAN/SMx
 https://blog.csdn.net/m0_46577050/article/details/142916092
 
 https://github.com/terrantsh/RSA2048
+
+https://github.com/ikantech/gm
+
+https://github.com/Aries-orz/nano-sm2/blob/master/sm2.h
+
+https://github.com/jestan/easy-ecc/blob/master/ecc.c

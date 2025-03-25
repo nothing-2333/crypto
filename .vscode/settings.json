@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "cstdlib": "c",
+        "ecc.h": "c"
+    }
+}

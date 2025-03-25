@@ -1,0 +1,1 @@
+gcc -o main main.c ECC.c -g
