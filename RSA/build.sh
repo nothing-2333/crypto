@@ -1,0 +1,1 @@
+gcc -o main main.c RSA.c bigNum.c -g
