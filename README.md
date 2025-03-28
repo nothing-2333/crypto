@@ -28,7 +28,7 @@ SM3
 
 SM4
 
-HMAC 只给出 py 实例，就是在`hash算法`的基础上用 key 加了两层扰动，不在专门实现、说明。
+HMAC 只给出 py 示例，就是在`hash算法`的基础上用 key 加了两层扰动，不在专门实现、说明。
 ```py
 import hashlib
 import binascii
@@ -67,6 +67,8 @@ hmac_value = hmac_sha256(key, message)
 print(f"HMAC-SHA256: {hmac_value}")
 ```
 
+murmurhash
+
 ### 参考链接
 https://blog.csdn.net/OrientalGlass/article/details/129400866
 
@@ -99,3 +101,5 @@ https://github.com/Aries-orz/nano-sm2/blob/master/sm2.h
 https://github.com/jestan/easy-ecc/blob/master/ecc.c
 
 https://zhuanlan.zhihu.com/p/336054453
+
+https://github.com/jwerle/murmurhash.c/
