@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-/* Curve selection options. */
+/* 曲线选择选项。 */
 #define secp128r1 16
 #define secp192r1 24
 #define secp256r1 32

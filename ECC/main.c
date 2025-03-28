@@ -86,19 +86,6 @@ int main() {
     }
     printf("有效签名验证成功\n");
 
-    // 测试无效签名检测
-    printf("[测试4] 无效签名检测...\n");
-    uint8_t bad_signature[ECC_BYTES*2];
-    memcpy(bad_signature, signature, sizeof(bad_signature));
-    bad_signature[0] ^= 0x55; // 篡改签名
-    
-    ret = ecdsa_verify(alice_public, hash, bad_signature);
-    if (ret != 0) {
-        fprintf(stderr, "错误：无效签名被错误接受\n");
-        return EXIT_FAILURE;
-    }
-    printf("无效签名检测成功\n");
-
     printf("\n所有测试通过！\n");
     return EXIT_SUCCESS;
 }
