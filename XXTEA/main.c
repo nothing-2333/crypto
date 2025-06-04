@@ -9,9 +9,9 @@ int main()
 	unsigned int n = 2;
 
 	printf("加密前原始数据：%x %x\n", value[0], value[1]);
-	encrypt(n, value, key);
+	xxtea_encrypt(n, value, key);
 	printf("加密后数据：%x %x\n", value[0], value[1]);
-	decrypt(n, value, key);
+	xxtea_decrypt(n, value, key);
 	printf("解密后数据：%x %x\n", value[0], value[1]);
 
 	return 0; 
