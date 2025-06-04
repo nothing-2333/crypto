@@ -1,1 +1,1 @@
-g++ main.cpp RC4.cpp -o main
+g++ main.c RC4.c -o main
