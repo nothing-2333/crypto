@@ -63,10 +63,10 @@ static const unsigned char SboxTable[16][16] = {
 	{0x18, 0xf0, 0x7d, 0xec, 0x3a, 0xdc, 0x4d, 0x20, 0x79, 0xee, 0x5f, 0x3e, 0xd7, 0xcb, 0x39, 0x48}
 };
 
-/* System parameter */
+/* 系统参数 */
 static const unsigned long FK[4] = {0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc};
 
-/* fixed parameter */
+/* 固定参数 */
 static const unsigned long CK[32] = {
 	0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,
 	0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,
@@ -169,8 +169,8 @@ static void sm4_setkey( unsigned long SK[32], unsigned char key[16] )
 		k[i + 4] = k[i] ^ (sm4CalciRK(k[i + 1] ^ k[i + 2] ^ k[i + 3] ^ CK[i]));
 		SK[i] = k[i + 4];
 	}
-
 }
+
 // 加密 16 字节
 static void sm4_one_round( unsigned long sk[32],
                            unsigned char input[16],
