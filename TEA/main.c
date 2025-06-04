@@ -9,9 +9,9 @@ int main()
 	uint32_t k[4] = { 1, 2, 3, 4};
 
 	printf("加密前的数据：%x %x\n", v[0], v[1]);
-	encrypt(v, k);
+	tea_encrypt(v, k);
 	printf("加密后数据：%x %x\n", v[0], v[1]);
-	decrypt(v, k);
+	tea_decrypt(v, k);
 	printf("解密后数据：%x %x\n", v[0], v[1]);
 	
 	return 0;

@@ -8,9 +8,9 @@ int main(){
 	unsigned int num_rounds = 32;
 
 	printf("加密前原始数据：%x %x\n", value[0], value[1]);
-	encrypt(num_rounds, value, key);
+	xtea_encrypt(num_rounds, value, key);
 	printf("加密后原始数据：%x %x\n", value[0], value[1]);
-	decrypt(num_rounds, value, key);
+	xtea_decrypt(num_rounds, value, key);
 	printf("解密后原始数据：%x %x\n", value[0], value[1]);
     
 	return 0;
