@@ -65,7 +65,7 @@ static const char de_table[] = {
         49,  50,  51, 255, 255, 255, 255, 255
 };
 
-unsigned int encode(const unsigned char *in, char *out)
+unsigned int base64_encode(const unsigned char *in, char *out)
 {
     unsigned int len = strlen(in);
 
@@ -117,7 +117,7 @@ unsigned int encode(const unsigned char *in, char *out)
     return j;
 }
 
-unsigned int decode(const unsigned char *in, char *out)
+unsigned int base64_decode(const unsigned char *in, char *out)
 {
     unsigned int len = strlen(in);
     if (len % 4 != 0) return 0; 
