@@ -3,35 +3,6 @@ c/c++ 实现一些标准加密，并且为每个加密做一个 README ，其中
 
 ## 每个加密配上流程笔记，以应对魔改的算法。
 
-### 算法统计
-MD5
-
-RC4
-
-TEA
-
-XTEA
-
-XXTEA
-
-AES
-
-base64
-
-RSA
-
-SHA256
-
-SM2
-
-SM3
-
-SM4
-
-HMAC 
-
-murmurhash
-
 ### 参考链接
 https://blog.csdn.net/OrientalGlass/article/details/129400866
 
