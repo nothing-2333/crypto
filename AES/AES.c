@@ -6,7 +6,7 @@
 /* 定义                                                       */
 /*****************************************************************************/
 
-// state 的列数。
+// Nb 状态矩阵(State Matrix)的列数 AES的分组长度固定为 ​​128位​(16字节), 分组始终映射为4×4字节矩阵,​​ 所以 Nb 恒为 4​​
 #define Nb 4
 
 // Nk 密钥的长度，单位为 32 bit
@@ -112,10 +112,9 @@ static void KeyExpansion(uint8_t* RoundKey, const uint8_t* Key)
 
 		if (i % Nk == 0)
 		{
+			// 函数 RotWord()
 			// 此函数将一个字中的 4 个字节向左循环移位一次。
 			// [a0,a1,a2,a3] 变为 [a1,a2,a3,a0]
-
-			// 函数 RotWord()
 			{
 				const uint8_t u8tmp = tempa[0];
 				tempa[0] = tempa[1];
@@ -124,10 +123,9 @@ static void KeyExpansion(uint8_t* RoundKey, const uint8_t* Key)
 				tempa[3] = u8tmp;
 			}
 
-			// SubWord() 是一个函数，它接收一个四字节输入字，
+			// 函数 SubWord()
+			// 它接收一个四字节输入字，
 			// 并对每个字节应用 S 盒，以产生一个输出字。
-
-			// 函数 Subword()
 			{
 				tempa[0] = getSBoxValue(tempa[0]);
 				tempa[1] = getSBoxValue(tempa[1]);
@@ -140,7 +138,7 @@ static void KeyExpansion(uint8_t* RoundKey, const uint8_t* Key)
 	#if defined(AES256) && (AES256 == 1)
 		if (i % Nk == 4)
 		{
-			// 函数 Subword()
+			// 函数 SubWord()
 			{
 				tempa[0] = getSBoxValue(tempa[0]);
 				tempa[1] = getSBoxValue(tempa[1]);
@@ -200,7 +198,7 @@ static void SubBytes(state_t* state)
 	}
 }
 
-// ShiftRows() 函数将状态矩阵中的行向左循环移位。
+// ShiftRows 函数将状态矩阵中的行向左循环移位。
 // 每一行的移位偏移量不同。
 // 偏移量 = 行号。因此，第一行不移位。
 static void ShiftRows(state_t* state)
