@@ -323,3 +323,16 @@ ctx->hash[5] += f;
 ctx->hash[6] += g;
 ctx->hash[7] += h;
 ```
+
+### 特点四
+密文长度: `uint32_t hash[8]` 4 * 8 == 32 字节, hex 字符串长度则为 64
+```cpp
+typedef struct {
+    uint8_t  buf[64];
+    uint32_t hash[8];
+    uint32_t bits[2];
+    uint32_t len;
+    uint32_t rfu__;
+    uint32_t W[64];
+} sha256_context;
+```
