@@ -80,6 +80,84 @@ static void KeyExpansion(uint8_t* RoundKey, const uint8_t* Key)
 	}
 }
 ```
+让我们一步步分解来看, 首先是:
+```cpp
+for (i = 0; i < Nk; ++i)
+{
+	RoundKey[(i * 4) + 0] = Key[(i * 4) + 0];
+	RoundKey[(i * 4) + 1] = Key[(i * 4) + 1];
+	RoundKey[(i * 4) + 2] = Key[(i * 4) + 2];
+	RoundKey[(i * 4) + 3] = Key[(i * 4) + 3];
+}
+```
+其中 RoundKey 是 `ctx->RoundKey`, 长度为 AES_keyExpSize = (Nr + 1) × AES_KEYLEN 的字节数组, 即轮密钥字节数组长度 = (机密轮数 + 1) x 密钥长度。而上边这段就是将密钥复制到轮密钥字节数组的开头。然后:
+```cpp
+{
+	k = (i - 1) * 4;
+	tempa[0] = RoundKey[k + 0];
+	tempa[1] = RoundKey[k + 1];
+	tempa[2] = RoundKey[k + 2];
+	tempa[3] = RoundKey[k + 3];
+}
+```
+获取前一个分组的 32bit 放入 `tempa`中, 再看:
+```cpp
+if (i % Nk == 0)
+{
+	// 函数 RotWord()
+	// 此函数将一个字中的 4 个字节向左循环移位一次。
+	// [a0,a1,a2,a3] 变为 [a1,a2,a3,a0]
+	{
+		const uint8_t u8tmp = tempa[0];
+		tempa[0] = tempa[1];
+		tempa[1] = tempa[2];
+		tempa[2] = tempa[3];
+		tempa[3] = u8tmp;
+	}
+
+	// 函数 SubWord()
+	// 它接收一个四字节输入字, 
+	// 并对每个字节应用 S 盒, 以产生一个输出字。
+	{
+		tempa[0] = getSBoxValue(tempa[0]);
+		tempa[1] = getSBoxValue(tempa[1]);
+		tempa[2] = getSBoxValue(tempa[2]);
+		tempa[3] = getSBoxValue(tempa[3]);
+	}
+
+	tempa[0] = tempa[0] ^ Rcon[i/Nk];
+}
+```
+先进行 `RotWord` 循环左移1字节, 再进行 `SubWord`  S 盒替换每个字节, 最后 `tempa[0] = tempa[0] ^ Rcon[i/Nk]`, Rcon 中存入了一些常量, 后面再 `特点总结` 会有具体的展示。继续往下看:
+```cpp
+#if defined(AES256) && (AES256 == 1)
+	if (i % Nk == 4)
+	{
+		// 函数 SubWord()
+		{
+			tempa[0] = getSBoxValue(tempa[0]);
+			tempa[1] = getSBoxValue(tempa[1]);
+			tempa[2] = getSBoxValue(tempa[2]);
+			tempa[3] = getSBoxValue(tempa[3]);
+		}
+	}
+#endif
+```
+对于 AES256 也就是 key 长度为 32 的情况进行额外的 S 盒替换。看最后一段:
+```cpp
+j = i * 4; 
+k = (i - Nk) * 4;
+RoundKey[j + 0] = RoundKey[k + 0] ^ tempa[0];
+RoundKey[j + 1] = RoundKey[k + 1] ^ tempa[1];
+RoundKey[j + 2] = RoundKey[k + 2] ^ tempa[2];
+RoundKey[j + 3] = RoundKey[k + 3] ^ tempa[3];
+```
+异或运算生成新轮密钥, 写入 RoundKey 中。
+
+简单概括一下就是(未写 AES256 额外的 S 盒替换, 这里的 w 是 32 字节 == tempa[4]):
+- 当 i 是 Nk 的倍数时: ​​w[i] = w[i-Nk] ⊕ T(w[i-1])​​
+- 当 i 不是 Nk 的倍数时: ​​w[i] = w[i-Nk] ⊕ w[i-1]​​
+
 然后是加密函数:
 ```cpp
 static void Cipher(state_t* state, const uint8_t* RoundKey)
@@ -248,7 +326,7 @@ static void XorWithIv(uint8_t* buf, const uint8_t* Iv)
 	}
 }
 ```
-相比于 ecb 模式, cbc 模式多进行了很多次 `Cipher` 加密, 并且还用 Iv 对输入(buf)做了扰动, 同时 Iv 用完一次就更新。其实这反映了 ecb 模式存在的问题: 相同明文分组始终加密为相同密文分组, 而 cbc 模式每个明文分组在加密前会与前一个密文分组进行异或(XorWithIv), 且首个分组与​​随机初始化向量(Iv)​​异或, 每个密文分组都依赖于前序所有分组。
+相比于 ecb 模式, cbc 模式多进行了很多次 `Cipher` 加密, 并且每次都用 Iv 对输入(buf)做了异或, 进行扰动, 同时 Iv 用完一次就更新为上一轮分组的结果。其实这反映了 ecb 模式存在的问题: 相同明文分组始终加密为相同密文分组, 而 cbc 模式每个明文分组在加密前会与前一个密文分组进行异或(XorWithIv), 且首个分组与​​随机初始化向量(Iv)​​异或, 每个密文分组都依赖于前序所有分组。
 
 简单看一眼解密函数:
 ```cpp
