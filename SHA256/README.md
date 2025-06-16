@@ -2,7 +2,7 @@
 
 ## 整体梳理
 总的来说只有三步 `sha256_init`, `sha256_hash`, `sha256_done`:
-```cpp
+```c
 void sha256(const void *data, size_t len, uint8_t *hash)
 {
     sha256_context ctx;
@@ -13,7 +13,7 @@ void sha256(const void *data, size_t len, uint8_t *hash)
 } // sha256
 ```
 先来看 `sha256_init`:
-```cpp
+```c
 typedef struct {
     uint8_t  buf[64];
     uint32_t hash[8];
@@ -39,7 +39,7 @@ void sha256_init(sha256_context *ctx)
 } // sha256_init
 ```
 初始化 `sha256_context` 结构体, 有一些特征值。再来看看 `sha256_hash`:
-```cpp
+```c
 void sha256_hash(sha256_context *ctx, const void *data, size_t len)
 {
     const uint8_t *bytes = (const uint8_t *)data;
@@ -110,7 +110,7 @@ static void _addbits(sha256_context *ctx, uint32_t n)
 } // _addbits
 ```
 `_hash` 中一些子函数没有列全, 后续会在特点总结列出, `sha256_hash` 总的来说就是将明文按 64 字节一组进行哈希, 经过一顿运算将明文信息“揉进” `ctx->hash` 中。不足 64 的部分放进缓冲区后不在管, 交给 `sha256_done` 函数:
-```cpp
+```c
 void sha256_done(sha256_context *ctx, uint8_t *hash)
 {
     register uint32_t i, j;
@@ -136,7 +136,7 @@ void sha256_done(sha256_context *ctx, uint8_t *hash)
 
         // 更新位计数器，将已处理的字节数转换为位数（每字节 8 位）
         _addbits(ctx, ctx->len * 8);
-        // 将位计数器的低 32 位和高 32 位分别存储到缓冲区的最后 8 字节中
+        // 将位计数器的低 32 位和高 32 位分别存储到缓冲区的最后 8 字节中, 大端序
         ctx->buf[63] = _shb(ctx->bits[0],  0);
         ctx->buf[62] = _shb(ctx->bits[0],  8);
         ctx->buf[61] = _shb(ctx->bits[0], 16);
@@ -176,12 +176,14 @@ SHA256 的收尾工作, 总结就是, 就是先在缓冲区 `ctx->buf` 后面加
 如果缓冲区 `ctx->buf` 剩余的部分大于或等于 8 字节, 即有空间存放存放位计数器(`ctx->bits`), 只会进行一次 `_hash`:
 - 剩余 + 0x80 + 用 0 填充将缓冲区到 56 字节 + 最后 8 字节存放位计数器(`ctx->bits`)的低 32 位和高 32 位, 然后 `_hash`, 将信息“揉进” `ctx->hash` 中。
 
+值得一提的是 `ctx->bits` 是以大端序存入。
+
 大功告成。
 
 ## 特点总结
 ### 特点一
 初始化特征值 & 固定值:
-```cpp
+```c
 ctx->hash[0] = 0x6a09e667;
 ctx->hash[1] = 0xbb67ae85;
 ctx->hash[2] = 0x3c6ef372;
@@ -214,7 +216,7 @@ static const uint32_t K[64] = {
 
 ### 特点二
 `_hash` 加密核心逻辑: 
-```cpp
+```c
 // -----------------------------------------------------------------------------
 // 将 32 位整数 x 左移 n 位，并确保结果仍然是 32 位
 FN_ uint32_t _shw(uint32_t x, uint32_t n)
@@ -326,7 +328,7 @@ ctx->hash[7] += h;
 
 ### 特点四
 密文长度: `uint32_t hash[8]` 4 * 8 == 32 字节, hex 字符串长度则为 64
-```cpp
+```c
 typedef struct {
     uint8_t  buf[64];
     uint32_t hash[8];
@@ -340,9 +342,9 @@ typedef struct {
 ### 特点五
 填充规则(具体可以看上边关于 `sha256_done` 中填充的分析, 这里只写结论): (明文长度 + 1(0x80)) % 64, 如果大于 56:
 - 明文剩余 + 0x80 + 用 0 填充到 64 字节, 进行 `_hash`
-- 最后 8 字节存放明文比特数(明文长度 * 8), 其余用 0 填充, 进行 `_hash`
+- 最后 8 字节以大端序存放明文比特数(明文长度 * 8), 其余用 0 填充, 进行 `_hash`
 如果小于等于 56:
-- 明文剩余 + 0x80 + 用 0 填充到 56 字节 + 最后 8 字节存放明文比特数(明文长度 * 8), 进行 `_hash`
+- 明文剩余 + 0x80 + 用 0 填充到 56 字节 + 最后 8 字节以大端序存放明文比特数(明文长度 * 8), 进行 `_hash`
 
 ### 特点六
 分组长度为 64 字节
