@@ -207,7 +207,7 @@ void bytesToUIntArray(uint8_t *output, uint32_t *input, uint32_t len) {
 	}
 }
 ```
-首先看:
+看看填充的计算:
 ```c
 index = (context->count[0] >> 3) & 0x3F;
 padlen = (index < 56)?(56-index):(120-index);
@@ -215,7 +215,8 @@ padlen = (index < 56)?(56-index):(120-index);
 如果缓冲区剩余长度 + 1(0x80) >= 56, 即在缓冲区填入一个 0x80 后, 剩余长度不足 8 字节, 无法将位计数器 `context->count` 存入, 那么就多来一个分组: 
 - 第一个分组是 `缓冲区剩余长度 + 0x80 + 用 0 填充到 64 字节` 然后用 `transform` “揉进”  `context->state` 中。
 - 第二个分组是 `最后 8 字节存放 context->count + 剩余用 0 填充` 再进行 `transform` “揉进”  `context->state` 中
-如果在缓冲区填入一个 0x80 后, 剩余长度足够 8 字节, 可以将位计数器 `context->count` 存入, 那么就 `缓冲区剩余长度 + 0x80 + 最后 8 字节存放 context->count + 剩余用 0 填充` 再进行 `transform` “揉进”  `context->state` 中
+如果在缓冲区填入一个 0x80 后, 剩余长度足够 8 字节, 可以将位计数器 `context->count` 存入, 那么就只有一个分组:
+- `缓冲区剩余长度 + 0x80 + 最后 8 字节存放 context->count + 剩余用 0 填充` 再进行 `transform` “揉进”  `context->state` 中
 
 值得一提的是 `context->count` 是以小端序存入。
 
@@ -301,7 +302,11 @@ II(&c,  d,  a,  b,  x[ 2],  15,  0x2ad7d2bb);
 II(&b,  c,  d,  a,  x[ 9],  21,  0xeb86d391);
 ```
 ### 特点二
-最后的填充：0x80, 0, 0 ... 0, 最后8字节是输入的总长度。
+填充规则(具体可以看上边关于 `md5Finish` 中填充的分析, 这里只写结论): (明文长度 + 1(0x80)) % 64, 如果大于 56:
+- 明文剩余 + 0x80 + 用 0 填充到 64 字节, 进行 `transform`
+- 最后 8 字节以小端序存放明文比特数(明文长度 * 8), 其余用 0 填充, 进行 `transform`
+如果小于等于 56:
+- 明文剩余 + 0x80 + 用 0 填充到 56 字节 + 最后 8 字节以小端序存放明文比特数(明文长度 * 8), 进行 `transform`
 ### 特点三
 运算：
 ```c
