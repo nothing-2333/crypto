@@ -1,13 +1,85 @@
 # SM4
 
 ## 整体梳理
-作为对称加密算法， SM4 与 AES 类似。
 
-初始化密钥，每轮密钥的生成只与上一轮密钥有关，可以直接全都生成出来再加密，或者边加密边生成。详见`static void sm4_setkey( unsigned long SK[32], unsigned char key[16] )`
+### ecb 模式
+首先是初始化密钥:
+```cpp
+/* 系统参数 */
+static const unsigned long FK[4] = {0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc};
 
-核心加密函数为`sm4F`，核心为查 S 盒替换，大量异或运算。
+/* 固定参数 */
+static const unsigned long CK[32] = {
+	0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,
+	0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,
+	0xe0e7eef5, 0xfc030a11, 0x181f262d, 0x343b4249,
+	0x50575e65, 0x6c737a81, 0x888f969d, 0xa4abb2b9,
+	0xc0c7ced5, 0xdce3eaf1, 0xf8ff060d, 0x141b2229,
+	0x30373e45, 0x4c535a61, 0x686f767d, 0x848b9299,
+	0xa0a7aeb5, 0xbcc3cad1, 0xd8dfe6ed, 0xf4fb0209,
+	0x10171e25, 0x2c333a41, 0x484f565d, 0x646b7279
+};
 
-IV 作为扰动，在不同模式（CDC 、ECB）， IV 的处理方式不同，核心思想是与待加密值进行异或。可以看成一个“最简版”的 key。
+static void sm4_setkey( unsigned long SK[32], unsigned char key[16] )
+{
+	unsigned long MK[4];
+	unsigned long k[36];
+	unsigned long i = 0;
+
+	MK[0] = GET_ULONG_BE( key, 0 );
+	MK[1] = GET_ULONG_BE( key, 4 );
+	MK[2] = GET_ULONG_BE( key, 8 );
+	MK[3] = GET_ULONG_BE( key, 12 );
+	k[0] = MK[0] ^ FK[0];
+	k[1] = MK[1] ^ FK[1];
+	k[2] = MK[2] ^ FK[2];
+	k[3] = MK[3] ^ FK[3];
+	for (; i < 32; i++)
+	{
+		k[i + 4] = k[i] ^ (sm4CalciRK(k[i + 1] ^ k[i + 2] ^ k[i + 3] ^ CK[i]));
+		SK[i] = k[i + 4];
+	}
+}
+
+static unsigned long sm4CalciRK(unsigned long ka)
+{
+	unsigned long bb = 0;
+	unsigned long rk = 0;
+	unsigned char a[4];
+	unsigned char b[4];
+	PUT_ULONG_BE(ka, a, 0);
+	b[0] = sm4Sbox(a[0]);
+	b[1] = sm4Sbox(a[1]);
+	b[2] = sm4Sbox(a[2]);
+	b[3] = sm4Sbox(a[3]);
+	bb = GET_ULONG_BE(b, 0);
+	rk = bb ^ (ROTL(bb, 13)) ^ (ROTL(bb, 23));
+	return rk;
+}
+
+// 内联函数：循环左移
+static inline unsigned long ROTL(unsigned long x, int n)
+{
+    return SHL(x, n) | (x >> (32 - n));
+}
+
+// 内联函数：从字节数组中按大端模式读取一个 32 位整数
+static inline unsigned long GET_ULONG_BE(const unsigned char *b, int i)
+{
+    return ((unsigned long)b[i] << 24) | ((unsigned long)b[i + 1] << 16) |
+           ((unsigned long)b[i + 2] << 8) | ((unsigned long)b[i + 3]);
+}
+
+// 内联函数：将一个 32 位整数按大端模式存储到字节数组中
+static inline void PUT_ULONG_BE(unsigned long n, unsigned char *b, int i)
+{
+    b[i] = (unsigned char)(n >> 24);
+    b[i + 1] = (unsigned char)(n >> 16);
+    b[i + 2] = (unsigned char)(n >> 8);
+    b[i + 3] = (unsigned char)n;
+}
+```
+
 
 ## 特点总结
 ### 特点一
