@@ -42,7 +42,7 @@ static void sm4_one_round( unsigned long sk[32],
 ```
 ### 特点四
 设置 key 核心逻辑
-```cpp
+```c
 
 static void sm4_setkey( unsigned long SK[32], unsigned char key[16] )
 {
@@ -90,11 +90,11 @@ static const unsigned char SboxTable[16][16] = {
 };
 ```
 - 系统参数（FK）, 初始化密钥扩展​​，增强密钥与算法的绑定
-```cpp
+```c
 static const unsigned long FK[4] = {0xa3b1bac6, 0x56aa3350, 0x677d9197, 0xb27022dc};
 ```
 - 固定参数（CK）​, ​​轮密钥生成的动态扰动源​​，确保每轮密钥唯一性
-```cpp
+```c
 static const unsigned long CK[32] = {
 	0x00070e15, 0x1c232a31, 0x383f464d, 0x545b6269,
 	0x70777e85, 0x8c939aa1, 0xa8afb6bd, 0xc4cbd2d9,

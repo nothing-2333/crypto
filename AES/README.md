@@ -4,7 +4,7 @@
 
 ### ecb 模式
 首先是初始化密钥函数:
-```cpp
+```c
 // 此函数生成 Nb(Nr+1) 个轮密钥
 // Nk 密钥的长度, 单位为 32 bit
 // Nr 加密轮数。
@@ -81,7 +81,7 @@ static void KeyExpansion(uint8_t* RoundKey, const uint8_t* Key)
 }
 ```
 让我们一步步分解来看, 首先是:
-```cpp
+```c
 for (i = 0; i < Nk; ++i)
 {
 	RoundKey[(i * 4) + 0] = Key[(i * 4) + 0];
@@ -91,7 +91,7 @@ for (i = 0; i < Nk; ++i)
 }
 ```
 其中 RoundKey 是 `ctx->RoundKey`, 长度为 AES_keyExpSize = (Nr + 1) × AES_KEYLEN 的字节数组, 即轮密钥字节数组长度 = (机密轮数 + 1) x 密钥长度。而上边这段就是将密钥复制到轮密钥字节数组的开头。然后:
-```cpp
+```c
 {
 	k = (i - 1) * 4;
 	tempa[0] = RoundKey[k + 0];
@@ -101,7 +101,7 @@ for (i = 0; i < Nk; ++i)
 }
 ```
 获取前一个分组的 32bit 放入 `tempa`中, 再看:
-```cpp
+```c
 if (i % Nk == 0)
 {
 	// 函数 RotWord()
@@ -129,7 +129,7 @@ if (i % Nk == 0)
 }
 ```
 先进行 `RotWord` 循环左移1字节, 再进行 `SubWord`  S 盒替换每个字节, 最后 `tempa[0] = tempa[0] ^ Rcon[i/Nk]`, Rcon 中存入了一些常量, 后面再 `特点总结` 会有具体的展示。继续往下看:
-```cpp
+```c
 #if defined(AES256) && (AES256 == 1)
 	if (i % Nk == 4)
 	{
@@ -144,7 +144,7 @@ if (i % Nk == 0)
 #endif
 ```
 对于 AES256 也就是 key 长度为 32 的情况进行额外的 S 盒替换。看最后一段:
-```cpp
+```c
 j = i * 4; 
 k = (i - Nk) * 4;
 RoundKey[j + 0] = RoundKey[k + 0] ^ tempa[0];
@@ -159,7 +159,7 @@ RoundKey[j + 3] = RoundKey[k + 3] ^ tempa[3];
 - 当 i 不是 Nk 的倍数时: ​​w[i] = w[i-Nk] ⊕ w[i-1]​​
 
 然后是加密函数:
-```cpp
+```c
 static void Cipher(state_t* state, const uint8_t* RoundKey)
 {
 	uint8_t round = 0;
@@ -184,7 +184,7 @@ static void Cipher(state_t* state, const uint8_t* RoundKey)
 }
 ```
 使用了一些比较代表性的函数 `AddRoundKey` `SubBytes` `ShiftRows` `MixColumns`, 让我们一一看看:
-```cpp
+```c
 // 此函数通过 XOR 操作将轮密钥添加到 state 中。
 static void AddRoundKey(uint8_t round, state_t* state, const uint8_t* RoundKey)
 {
@@ -266,7 +266,7 @@ static uint8_t xtime(uint8_t x)
 ```
 
 简单看一下解密函数, 执行的操作全部反过来:
-```cpp
+```c
 // 解密函数
 static void InvCipher(state_t* state, const uint8_t* RoundKey)
 {
@@ -294,7 +294,7 @@ static void InvCipher(state_t* state, const uint8_t* RoundKey)
 
 ### cbc 模式
 见识过了 ecb 模式, 让我看看 cbc 模式有了那些不同。初始化函数:
-```cpp
+```c
 void AES_init_ctx_iv(AES_ctx* ctx, const uint8_t* key, const uint8_t* iv)
 {
 	KeyExpansion(ctx->RoundKey, key);
@@ -302,7 +302,7 @@ void AES_init_ctx_iv(AES_ctx* ctx, const uint8_t* key, const uint8_t* iv)
 }
 ```
 和上边一样, 只不过多了一个 iv。再来看看加密函数:
-```cpp
+```c
 void AES_CBC_encrypt_buffer(AES_ctx *ctx, uint8_t* buf, size_t length)
 {
 	size_t i;
@@ -329,7 +329,7 @@ static void XorWithIv(uint8_t* buf, const uint8_t* Iv)
 相比于 ecb 模式, cbc 模式多进行了很多次 `Cipher` 加密, 并且每次都用 Iv 对输入(buf)做了异或, 进行扰动, 同时 Iv 用完一次就更新为上一轮分组的结果。其实这反映了 ecb 模式存在的问题: 相同明文分组始终加密为相同密文分组, 而 cbc 模式每个明文分组在加密前会与前一个密文分组进行异或(XorWithIv), 且首个分组与​​随机初始化向量(Iv)​​异或, 每个密文分组都依赖于前序所有分组。
 
 简单看一眼解密函数:
-```cpp
+```c
 void AES_CBC_decrypt_buffer(AES_ctx* ctx, uint8_t* buf, size_t length)
 {
 	size_t i;
@@ -347,7 +347,7 @@ void AES_CBC_decrypt_buffer(AES_ctx* ctx, uint8_t* buf, size_t length)
 
 ### ctr 模式
 再来看看 ctr 模式, 初始化函数, 与 cbc 相同:
-```cpp
+```c
 void AES_init_ctx_iv(AES_ctx* ctx, const uint8_t* key, const uint8_t* iv)
 {
 	KeyExpansion(ctx->RoundKey, key);
@@ -355,7 +355,7 @@ void AES_init_ctx_iv(AES_ctx* ctx, const uint8_t* key, const uint8_t* iv)
 }
 ```
 加密和解密使用相同的函数:
-```cpp
+```c
 void AES_CTR_xcrypt_buffer(AES_ctx* ctx, uint8_t* buf, size_t length)
 {
 	uint8_t buffer[AES_BLOCKLEN];
@@ -402,7 +402,7 @@ iv 长度: 16 字节
 特征运算: 加密过程中比较有代表性的三个函数: `SubBytes` `ShiftRows` `MixColumns` 即字节替换, 行位移, 列混淆​。
 
 - `SubBytes` 中操作, 将 4x4 矩阵的值作为索引去 SBox 获取值, 填回 4x4 矩阵:
-```cpp
+```c
 for (i = 0; i < 4; ++i)
 {
 	for (j = 0; j < 4; ++j)
