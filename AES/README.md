@@ -206,7 +206,7 @@ static void SubBytes(state_t* state)
 	{
 		for (j = 0; j < 4; ++j)
 		{
-		(*state)[j][i] = getSBoxValue((*state)[j][i]);
+			(*state)[j][i] = getSBoxValue((*state)[j][i]);
 		}
 	}
 }
@@ -264,7 +264,6 @@ static uint8_t xtime(uint8_t x)
   	return ((x << 1) ^ (((x >> 7) & 1) * 0x1b));
 }
 ```
-
 简单看一下解密函数, 执行的操作全部反过来:
 ```c
 // 解密函数
@@ -407,7 +406,7 @@ for (i = 0; i < 4; ++i)
 {
 	for (j = 0; j < 4; ++j)
 	{
-	(*state)[j][i] = getSBoxValue((*state)[j][i]);
+		(*state)[j][i] = getSBoxValue((*state)[j][i]);
 	}
 }
 ```
