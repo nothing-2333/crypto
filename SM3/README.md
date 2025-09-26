@@ -479,3 +479,9 @@ ctx->state[5] ^= F;
 ctx->state[6] ^= G;
 ctx->state[7] ^= H;
 ```
+
+### 特点六
+分组长度为 64 字节
+
+### 特定七
+state 大小为 int32 * 8
